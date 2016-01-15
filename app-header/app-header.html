@@ -217,7 +217,13 @@ Mixin | Description | Default
           type: Boolean,
           reflectToAttribute: true,
           value: false
+        },
+
+        blockScrollEffects: {
+          type: Boolean,
+          value: false
         }
+
       },
 
       observers: [
@@ -321,7 +327,7 @@ Mixin | Description | Default
        * @param {boolean}
        */
       _updateScrollState: function(scrollTop, forceUpdate) {
-        if (this._height === 0) {
+        if (this._height === 0 || this.blockScrollEffects) {
           return;
         }
         var progress;

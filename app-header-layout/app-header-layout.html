@@ -126,7 +126,9 @@ Using an own scrolling region:
           value: false,
           reflectToAttribute: true,
           observer: '_hasScrollingRegionChanged'
-        }
+        },
+
+        _savedPageYOffset: Number
 
       },
 
@@ -145,6 +147,32 @@ Using an own scrolling region:
       setup: function() {
         this._updateContentPosition();
         this._updateScroller();
+      },
+
+      // Resizes app-header-layout to the height of the viewport and translates the content
+      // up to "simulate" disabled document scrolling on iOS.
+      simulateDisabledScroll: function(disabled) {
+        if (disabled) {
+          if (this.hasScrollingRegion) {
+            this.$.contentContainer.style.webkitOverflowScrolling = 'auto';
+          } else {
+            this._savedPageYOffset = window.pageYOffset;
+            this.style.height  = window.innerHeight + 'px';
+            this.style.overflow = 'hidden';
+            this.transform('translateY(-' + this._savedPageYOffset + 'px)', this.$.contentContainer);
+            this.header.blockScrollEffects = true;
+          }
+        } else {
+          if (this.hasScrollingRegion) {
+            this.$.contentContainer.style.webkitOverflowScrolling = '';
+          } else {
+            this.style.height = '';
+            this.style.overflow = '';
+            this.transform('', this.$.contentContainer);
+            window.scrollTo(window.pageXOffset, this._savedPageYOffset);
+            this.header.blockScrollEffects = false;
+          }
+        }
       },
 
       _getFixedNodes: function() {

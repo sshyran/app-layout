@@ -321,7 +321,13 @@ Custom property                  | Description                            | Defa
       },
 
       _updateDocScroll: function() {
-        document.body.style.overflow = (this.persistent || !this.opened) ? '' : 'hidden';
+        var disableScroll = !this.persistent && this.opened;
+        document.body.style.overflow = disableScroll ? 'hidden' : '';
+
+        var appHeaderLayout = document.querySelector('app-header-layout');
+        if (appHeaderLayout && appHeaderLayout.isAttached) {
+          appHeaderLayout.simulateDisabledScroll(disableScroll);
+        }
       }
 
       /**
