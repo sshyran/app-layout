@@ -183,8 +183,7 @@ Custom property                  | Description                            | Defa
         position: {
           type: String,
           value: 'left',
-          reflectToAttribute: true,
-          observer: '_positionChanged'
+          reflectToAttribute: true
         },
 
         /**
@@ -205,6 +204,10 @@ Custom property                  | Description                            | Defa
       listeners: {
         track: '_trackHandler'
       },
+
+      observers: [
+        'resetLayout(position)'
+      ],
 
       attached: function() {
         this.setScrollDirection('y');
@@ -238,6 +241,10 @@ Custom property                  | Description                            | Defa
        */
       getWidth: function() {
         return this.$.contentContainer.offsetWidth;
+      },
+
+      resetLayout: function() {
+        this.fire('app-drawer-reset-layout');
       },
 
       _scrimTapHandler: function() {
@@ -312,10 +319,6 @@ Custom property                  | Description                            | Defa
         this._updateDocScroll();
       },
 
-      _positionChanged: function() {
-        this.fire('app-drawer-layout-changed');
-      },
-
       _translateDrawer: function(x) {
         this.transform('translate3d(' + x + 'px, 0, 0)', this.$.contentContainer);
       },
@@ -333,7 +336,7 @@ Custom property                  | Description                            | Defa
       /**
        * Fired when the layout of app-drawer has changed.
        *
-       * @event app-drawer-layout-changed
+       * @event app-drawer-reset-layout
        */
 
     });

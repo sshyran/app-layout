@@ -118,9 +118,9 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.equal(drawer.getWidth(), contentContainer.offsetWidth);
       });
 
-      test('app-drawer-layout-changed', function() {
+      test('app-drawer-reset-layout', function() {
         var listenerSpy = sinon.spy();
-        drawer.addEventListener('app-drawer-layout-changed', listenerSpy);
+        drawer.addEventListener('app-drawer-reset-layout', listenerSpy);
         drawer.position = 'right';
 
         assert.isTrue(listenerSpy.called);
@@ -130,8 +130,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         const SWIPE_DISTANCE = 32;
         const TRANSITION_DURATION = '0.01s';
         var drawerWidth = drawer.getWidth();
-        var transformSpy = sinon.spy();
-        drawer.transform = transformSpy;
+        var transformSpy = sinon.spy(drawer, 'transform');
 
         // Set a transition-duration to check if drawer properly resets inline styles on track end.
         drawer.updateStyles({
@@ -158,8 +157,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.isTrue(drawer.opened, 'drawer opened if user slides in');
 
         drawer.fire('track', { state: 'start' });
-        drawer.fire('track', { state: 'track', dx: -6, ddx: -6 });
-        drawer.fire('track', { state: 'end', dx: -6, ddx: 0 });
+        drawer.fire('track', { state: 'track', dx: -30, ddx: -30 });
+        drawer.fire('track', { state: 'end', dx: -30, ddx: 0 });
 
         assert.isTrue(drawer.opened, 'drawer stays opened if threshold is not met');
 
@@ -196,8 +195,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.isTrue(drawer.opened, 'drawer opened if user slides in');
 
         drawer.fire('track', { state: 'start' });
-        drawer.fire('track', { state: 'track', dx: 6, ddx: 6 });
-        drawer.fire('track', { state: 'end', dx: 6, ddx: 0 });
+        drawer.fire('track', { state: 'track', dx: 30, ddx: 30 });
+        drawer.fire('track', { state: 'end', dx: 30, ddx: 0 });
 
         assert.isTrue(drawer.opened, 'drawer stays opened if threshold is not met');
 
@@ -214,21 +213,30 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       });
 
       test('doc scroll', function() {
+        var simulateDisabledScrollSpy = sinon.spy();
+        sinon.stub(document, 'querySelector').returns({
+          isAttached: true,
+          simulateDisabledScroll: simulateDisabledScrollSpy
+        });
         drawer.opened = true;
 
         assert.equal(document.body.style.overflow, 'hidden');
+        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], true);
 
         drawer.persistent = true;
 
         assert.equal(document.body.style.overflow, '');
+        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], false);
 
         drawer.persistent = false;
 
         assert.equal(document.body.style.overflow, 'hidden');
+        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], true);
 
         drawer.opened = false;
 
         assert.equal(document.body.style.overflow, '');
+        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], false);
       });
 
       test('scrim', function() {
