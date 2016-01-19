@@ -119,26 +119,26 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       test('content layout', function(done) {
         drawerLayout.responsiveWidth = '10000px';
 
-        flush(function() {
+        window.setTimeout(function() {
           assert.equal(drawerLayout.$.contentContainer.style.marginLeft, '');
           assert.equal(drawerLayout.$.contentContainer.style.marginRight, '');
 
           drawerLayout.responsiveWidth = '0px';
 
-          flush(function() {
+          window.setTimeout(function() {
             assert.equal(drawerLayout.$.contentContainer.style.marginLeft, '256px');
             assert.equal(drawerLayout.$.contentContainer.style.marginRight, '');
 
             drawer.position = 'right';
 
-            flush(function() {
+            window.setTimeout(function() {
               assert.equal(drawerLayout.$.contentContainer.style.marginLeft, '');
               assert.equal(drawerLayout.$.contentContainer.style.marginRight, '256px');
 
               done();
-            });
-          });
-        });
+            }, 1);
+          }, 1);
+        }, 1);
       });
     });
 
