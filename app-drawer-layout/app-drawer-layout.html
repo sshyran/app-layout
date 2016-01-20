@@ -88,7 +88,6 @@ Custom property                          | Description                          
     #contentContainer {
       position: relative;
       height: 100%;
-
       transition: var(--app-drawer-layout-content-transition, none);
     }
 
@@ -101,10 +100,10 @@ Custom property                          | Description                          
   <template>
 
     <div id="contentContainer" class$="[[_computeClass(narrow)]]">
-      <content select=":not(app-drawer)"></content>
+      <content id="content" select=":not(app-drawer)"></content>
     </div>
 
-    <content id="drawerContainer" select="app-drawer"></content>
+    <content id="drawerContent" select="app-drawer"></content>
 
     <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]"
         on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
@@ -153,6 +152,7 @@ Custom property                          | Description                          
 
       listeners: {
         'tap': '_tapHandler',
+        'app-drawer-scrim-visibility-changed': '_updateHeaderLayoutScroll',
         'app-drawer-reset-layout': 'resetLayout'
       },
 
@@ -166,7 +166,7 @@ Custom property                          | Description                          
        * @property drawer
        */
       get drawer() {
-        return Polymer.dom(this.$.drawerContainer).getDistributedNodes()[0];
+        return Polymer.dom(this.$.drawerContent).getDistributedNodes()[0];
       },
 
       _tapHandler: function(e) {
@@ -201,6 +201,22 @@ Custom property                          | Description                          
         return forceNarrow ? '' : '(max-width: ' + responsiveWidth + ')';
       },
 
+      _updateHeaderLayoutScroll: function() {
+        // Set the disabled state on all <app-header-layout> elements distributed in the content
+        // insertion point. Does not change the disabled state for any <app-header-layout> elements
+        // inside the drawer.
+        var disableScroll = !this.drawer.persistent && this.drawer.opened;
+        var contentDistributedNodes = Polymer.dom(this.$.content).getDistributedNodes();
+        for (var i = 0; i < contentDistributedNodes.length; i++) {
+          var node = contentDistributedNodes[i];
+          if (node.tagName === 'APP-HEADER-LAYOUT') {
+            node.disabled = disableScroll;
+          }
+          Array.prototype.forEach.call(node.querySelectorAll('app-header-layout'), function(node) {
+            node.disabled = disableScroll;
+          });
+        };
+      },
 
       /**
        * NOTE(keanulee): IE/Edge does not properly update element styles when using

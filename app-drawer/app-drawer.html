@@ -163,8 +163,7 @@ Custom property                  | Description                            | Defa
           type: Boolean,
           value: false,
           notify: true,
-          reflectToAttribute: true,
-          observer: '_openedChanged'
+          reflectToAttribute: true
         },
 
         /**
@@ -173,8 +172,7 @@ Custom property                  | Description                            | Defa
         persistent: {
           type: Boolean,
           value: false,
-          reflectToAttribute: true,
-          observer: '_persistentChanged'
+          reflectToAttribute: true
         },
 
         /**
@@ -193,11 +191,7 @@ Custom property                  | Description                            | Defa
           type: Boolean,
           value: false,
           reflectToAttribute: true
-        },
-
-        _lastTrackDirection: Number,
-
-        _translateOffset: Number
+        }
 
       },
 
@@ -206,10 +200,16 @@ Custom property                  | Description                            | Defa
       },
 
       observers: [
-        'resetLayout(position)'
+        'resetLayout(position)',
+        '_updateScrimVisibility(opened, persistent)'
       ],
 
+      _lastTrackDirection: 0,
+
+      _translateOffset: 0,
+
       attached: function() {
+        // Set the scroll direction so you can vertically scroll inside the drawer.
         this.setScrollDirection('y');
       },
 
@@ -244,7 +244,14 @@ Custom property                  | Description                            | Defa
       },
 
       resetLayout: function() {
-        this.fire('app-drawer-reset-layout');
+        this.debounce('_resetLayout', function() {
+          this.fire('app-drawer-reset-layout');
+        }, 1);
+      },
+
+      _updateScrimVisibility: function() {
+        document.body.style.overflow = !this.persistent && this.opened ? 'hidden' : '';
+        this.fire('app-drawer-scrim-visibility-changed');
       },
 
       _scrimTapHandler: function() {
@@ -311,32 +318,20 @@ Custom property                  | Description                            | Defa
         }
       },
 
-      _openedChanged: function() {
-        this._updateDocScroll();
-      },
-
-      _persistentChanged: function() {
-        this._updateDocScroll();
-      },
-
       _translateDrawer: function(x) {
         this.transform('translate3d(' + x + 'px, 0, 0)', this.$.contentContainer);
-      },
-
-      _updateDocScroll: function() {
-        var disableScroll = !this.persistent && this.opened;
-        document.body.style.overflow = disableScroll ? 'hidden' : '';
-
-        var appHeaderLayout = document.querySelector('app-header-layout');
-        if (appHeaderLayout && appHeaderLayout.isAttached) {
-          appHeaderLayout.simulateDisabledScroll(disableScroll);
-        }
       }
 
       /**
        * Fired when the layout of app-drawer has changed.
        *
        * @event app-drawer-reset-layout
+       */
+
+      /**
+       * Fired when the visibility of app-drawer's scrim has changed.
+       *
+       * @event app-drawer-scrim-visibility-changed
        */
 
     });

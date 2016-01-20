@@ -118,12 +118,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         assert.equal(drawer.getWidth(), contentContainer.offsetWidth);
       });
 
-      test('app-drawer-reset-layout', function() {
+      test('app-drawer-reset-layout', function(done) {
         var listenerSpy = sinon.spy();
         drawer.addEventListener('app-drawer-reset-layout', listenerSpy);
         drawer.position = 'right';
 
-        assert.isTrue(listenerSpy.called);
+        flush(function() {
+          assert.isTrue(listenerSpy.called);
+          done();
+        });
       });
 
       test('swiping', function() {
@@ -213,30 +216,27 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
       });
 
       test('doc scroll', function() {
-        var simulateDisabledScrollSpy = sinon.spy();
-        sinon.stub(document, 'querySelector').returns({
-          isAttached: true,
-          simulateDisabledScroll: simulateDisabledScrollSpy
-        });
+        var listenerSpy = sinon.spy();
+        drawer.addEventListener('app-drawer-scrim-visibility-changed', listenerSpy);
         drawer.opened = true;
 
         assert.equal(document.body.style.overflow, 'hidden');
-        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], true);
+        assert.equal(listenerSpy.callCount, 1);
 
         drawer.persistent = true;
 
         assert.equal(document.body.style.overflow, '');
-        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], false);
+        assert.equal(listenerSpy.callCount, 2);
 
         drawer.persistent = false;
 
         assert.equal(document.body.style.overflow, 'hidden');
-        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], true);
+        assert.equal(listenerSpy.callCount, 3);
 
         drawer.opened = false;
 
         assert.equal(document.body.style.overflow, '');
-        assert.equal(simulateDisabledScrollSpy.lastCall.args[0], false);
+        assert.equal(listenerSpy.callCount, 4);
       });
 
       test('scrim', function() {

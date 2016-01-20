@@ -144,11 +144,11 @@ Mixin | Description | Default
       width: 100%;
     }
 
-    :host([no-transitions]),
-    :host([no-transitions])::after,
-    :host([no-transitions]) #frontLayer,
-    :host([no-transitions]) #backLayer,
-    :host([no-transitions]) > ::content > app-toolbar:first-of-type {
+    :host([disabled]),
+    :host([disabled])::after,
+    :host([disabled]) #frontLayer,
+    :host([disabled]) #backLayer,
+    :host([disabled]) > ::content > app-toolbar:first-of-type {
       transition: none !important;
     }
 
@@ -216,11 +216,6 @@ Mixin | Description | Default
         shadow: {
           type: Boolean,
           reflectToAttribute: true,
-          value: false
-        },
-
-        blockScrollEffects: {
-          type: Boolean,
           value: false
         }
 
@@ -297,12 +292,12 @@ Mixin | Description | Default
         }
         var firstSetup = this._height === 0;
         var scrollTop = this._clampedScrollTop;
-        var currentNoTransition = this.noTransitions;
+        var savedDisabled = this.disabled;
         this._height = this.offsetHeight;
         this._topbar = Polymer.dom(this).querySelector('app-toolbar');
 
         // prepare for measurement
-        this.noTransitions = true;
+        this.disabled = true;
 
         if (firstSetup || scrollTop === 0) {
           this.cancelDebouncer('_resize');
@@ -317,7 +312,7 @@ Mixin | Description | Default
           this._layoutIfDirty();
         }
         // restore no transition
-        this.noTransitions = currentNoTransition;
+        this.disabled = savedDisabled;
       },
 
       /**
@@ -327,7 +322,7 @@ Mixin | Description | Default
        * @param {boolean}
        */
       _updateScrollState: function(scrollTop, forceUpdate) {
-        if (this._height === 0 || this.blockScrollEffects) {
+        if (this._height === 0) {
           return;
         }
         var progress;

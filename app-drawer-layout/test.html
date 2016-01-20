@@ -18,6 +18,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
   <script src="../../web-component-tester/browser.js"></script>
   <script src="../../test-fixture/test-fixture-mocha.js"></script>
   <link rel="import" href="../../test-fixture/test-fixture.html">
+  <link rel="import" href="../app-header-layout/app-header-layout.html">
   <link rel="import" href="app-drawer-layout.html">
 
   <style is="custom-style">
@@ -56,9 +57,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
   <test-fixture id="testDrawerLayout">
     <template>
       <app-drawer-layout>
-        <app-drawer>Drawer</app-drawer>
+        <app-drawer>
+          <app-header-layout class="in-drawer"></app-header-layout>
+        </app-drawer>
         <div drawer-toggle>Toggle</div>
         <p>Content</p>
+        <app-header-layout></app-header-layout>
+        <div>
+          <app-header-layout></app-header-layout>
+        </div>
       </app-drawer-layout>
     </template>
   </test-fixture>
@@ -136,9 +143,40 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
               assert.equal(drawerLayout.$.contentContainer.style.marginRight, '256px');
 
               done();
-            }, 1);
-          }, 1);
-        }, 1);
+            }, 50);
+          }, 50);
+        }, 50);
+      });
+
+      test('updates app-header-layout disabled state', function(done) {
+        var drawerHeaderLayout = drawerLayout.querySelector('app-header-layout.in-drawer');
+        var contentHeaderLayouts = [].slice.call(drawerLayout.querySelectorAll('app-header-layout:not(.in-drawer)'));
+        drawerLayout.responsiveWidth = '10000px';
+
+        assert.isFalse(drawerHeaderLayout.disabled);
+        contentHeaderLayouts.forEach(function(headerLayout) {
+          assert.isFalse(headerLayout.disabled);
+        });
+
+        drawer.opened = true;
+
+        flush(function() {
+          assert.isFalse(drawerHeaderLayout.disabled);
+          contentHeaderLayouts.forEach(function(headerLayout) {
+            assert.isTrue(headerLayout.disabled);
+          });
+
+          drawerLayout.responsiveWidth = '0px';
+
+          flush(function() {
+            assert.isFalse(drawerHeaderLayout.disabled);
+            contentHeaderLayouts.forEach(function(headerLayout) {
+              assert.isFalse(headerLayout.disabled);
+            });
+
+            done();
+          });
+        });
       });
     });
 

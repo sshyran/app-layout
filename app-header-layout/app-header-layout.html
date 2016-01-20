@@ -124,17 +124,26 @@ Using an own scrolling region:
         hasScrollingRegion: {
           type: Boolean,
           value: false,
-          reflectToAttribute: true,
-          observer: '_hasScrollingRegionChanged'
+          reflectToAttribute: true
         },
 
-        _savedPageYOffset: Number
+        disabled: {
+          type: Boolean,
+          value: false
+        }
 
       },
 
       listeners: {
         'iron-resize': '_resize'
       },
+
+      observers: [
+        '_hasScrollingRegionChanged(hasScrollingRegion)',
+        '_disabledChanged(disabled)'
+      ],
+
+      _savedPageYOffset: 0,
 
       get header() {
         return Polymer.dom(this.$.header).getDistributedNodes()[0];
@@ -149,18 +158,34 @@ Using an own scrolling region:
         this._updateScroller();
       },
 
-      // Resizes app-header-layout to the height of the viewport and translates the content
-      // up to "simulate" disabled document scrolling on iOS.
-      simulateDisabledScroll: function(disabled) {
+      // When app-header-layout is disabled, we disable scrolling on the main content. On non-iOS
+      // devices, we do this by setting <body>.style.overflow = 'hidden'; this is done in
+      // <app-drawer> so that the functionality is provided when not using <app-header-layout>.
+      // This does not work on iOS devices which does scrolling on a separate layer; to overcome
+      // this, we use hacks that require a certain DOM structure, so this functionality is only
+      // available with <app-header-layout>.
+      _disabledChanged: function(disabled) {
+        var header = this.header;
+        if (!header) {
+          return;
+        }
+
         if (disabled) {
           if (this.hasScrollingRegion) {
+            // If scrolling is done inside an element with webkitOverflowScrolling = 'touch' (i.e.
+            // not document scrolling), then we can just set webkitOverflowScrolling = 'auto' to
+            // disable scrolling.
             this.$.contentContainer.style.webkitOverflowScrolling = 'auto';
           } else {
+            // If we are using document scrolling, we disable the header to stop any scrolling
+            // effects, resize the height <app-header-layout> to the viewport height, and
+            // vertically translate the contents to simulate disabled scrolling. We also save the
+            // last scroll position so we can restore it later.
+            header.disabled = true;
             this._savedPageYOffset = window.pageYOffset;
             this.style.height  = window.innerHeight + 'px';
             this.style.overflow = 'hidden';
             this.transform('translateY(-' + this._savedPageYOffset + 'px)', this.$.contentContainer);
-            this.header.blockScrollEffects = true;
           }
         } else {
           if (this.hasScrollingRegion) {
@@ -170,7 +195,7 @@ Using an own scrolling region:
             this.style.overflow = '';
             this.transform('', this.$.contentContainer);
             window.scrollTo(window.pageXOffset, this._savedPageYOffset);
-            this.header.blockScrollEffects = false;
+            header.disabled = false;
           }
         }
       },
