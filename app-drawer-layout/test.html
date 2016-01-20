@@ -160,7 +160,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
         drawer.opened = true;
 
-        flush(function() {
+        window.setTimeout(function() {
           assert.isFalse(drawerHeaderLayout.disabled);
           contentHeaderLayouts.forEach(function(headerLayout) {
             assert.isTrue(headerLayout.disabled);
@@ -168,15 +168,15 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
           drawerLayout.responsiveWidth = '0px';
 
-          flush(function() {
+          window.setTimeout(function() {
             assert.isFalse(drawerHeaderLayout.disabled);
             contentHeaderLayouts.forEach(function(headerLayout) {
               assert.isFalse(headerLayout.disabled);
             });
 
             done();
-          });
-        });
+          }, 1);
+        }, 1);
       });
     });
 

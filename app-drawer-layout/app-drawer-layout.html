@@ -152,7 +152,7 @@ Custom property                          | Description                          
 
       listeners: {
         'tap': '_tapHandler',
-        'app-drawer-scrim-visibility-changed': '_updateHeaderLayoutScroll',
+        'app-drawer-scrim-visibility-changed': '_updateHeaderLayoutDisabledState',
         'app-drawer-reset-layout': 'resetLayout'
       },
 
@@ -201,11 +201,16 @@ Custom property                          | Description                          
         return forceNarrow ? '' : '(max-width: ' + responsiveWidth + ')';
       },
 
-      _updateHeaderLayoutScroll: function() {
+      _updateHeaderLayoutDisabledState: function() {
+        var drawer = this.drawer;
+        if (!this.drawer) {
+          return;
+        }
+
         // Set the disabled state on all <app-header-layout> elements distributed in the content
         // insertion point. Does not change the disabled state for any <app-header-layout> elements
         // inside the drawer.
-        var disableScroll = !this.drawer.persistent && this.drawer.opened;
+        var disableScroll = !drawer.persistent && drawer.opened;
         var contentDistributedNodes = Polymer.dom(this.$.content).getDistributedNodes();
         for (var i = 0; i < contentDistributedNodes.length; i++) {
           var node = contentDistributedNodes[i];

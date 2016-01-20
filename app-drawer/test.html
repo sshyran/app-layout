@@ -123,10 +123,10 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
         drawer.addEventListener('app-drawer-reset-layout', listenerSpy);
         drawer.position = 'right';
 
-        flush(function() {
+        window.setTimeout(function() {
           assert.isTrue(listenerSpy.called);
           done();
-        });
+        }, 1);
       });
 
       test('swiping', function() {

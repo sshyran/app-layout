@@ -124,7 +124,8 @@ Using an own scrolling region:
         hasScrollingRegion: {
           type: Boolean,
           value: false,
-          reflectToAttribute: true
+          reflectToAttribute: true,
+          observer: '_hasScrollingRegionChanged'
         },
 
         disabled: {
