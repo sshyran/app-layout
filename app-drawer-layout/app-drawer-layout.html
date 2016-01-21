@@ -99,7 +99,7 @@ Custom property                          | Description                          
 
   <template>
 
-    <div id="contentContainer" class$="[[_computeClass(narrow)]]">
+    <div id="contentContainer" class$="[[_computeClass(narrow)]]" on-app-header-layout-attached="_addContentHeaderLayout">
       <content id="content" select=":not(app-drawer)"></content>
     </div>
 
@@ -146,6 +146,13 @@ Custom property                          | Description                          
         responsiveWidth: {
           type: String,
           value: '640px'
+        },
+
+        _contentHeaderLayouts: {
+          type: Object,
+          value: function() {
+            return [];
+          }
         }
 
       },
@@ -201,6 +208,18 @@ Custom property                          | Description                          
         return forceNarrow ? '' : '(max-width: ' + responsiveWidth + ')';
       },
 
+      _addContentHeaderLayout: function(event) {
+        var headerLayout = Polymer.dom(event).rootTarget;
+        this._contentHeaderLayouts = this._contentHeaderLayouts || [];
+
+        if (this._contentHeaderLayouts.indexOf(headerLayout) === -1) {
+          this._contentHeaderLayouts.push({
+            node: headerLayout,
+            savedDisabled: headerLayout.disabled
+          });
+        }
+      },
+
       _updateHeaderLayoutDisabledState: function() {
         var drawer = this.drawer;
         if (!this.drawer) {
@@ -211,16 +230,14 @@ Custom property                          | Description                          
         // insertion point. Does not change the disabled state for any <app-header-layout> elements
         // inside the drawer.
         var disableScroll = !drawer.persistent && drawer.opened;
-        var contentDistributedNodes = Polymer.dom(this.$.content).getDistributedNodes();
-        for (var i = 0; i < contentDistributedNodes.length; i++) {
-          var node = contentDistributedNodes[i];
-          if (node.tagName === 'APP-HEADER-LAYOUT') {
-            node.disabled = disableScroll;
+        this._contentHeaderLayouts.forEach(function(item) {
+          if (disableScroll) {
+            item.savedDisabled = item.node.disabled;
+            item.node.disabled = true;
+          } else {
+            item.node.disabled = item.savedDisabled;
           }
-          Array.prototype.forEach.call(node.querySelectorAll('app-header-layout'), function(node) {
-            node.disabled = disableScroll;
-          });
-        };
+        });
       },
 
       /**

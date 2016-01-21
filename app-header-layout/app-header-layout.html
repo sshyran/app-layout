@@ -151,6 +151,10 @@ Using an own scrolling region:
         return Polymer.dom(this.$.header).getDistributedNodes()[0];
       },
 
+      attached: function() {
+        this.fire('app-header-layout-attached');
+      },
+
       /**
        * Resets the layout. This method is automatically called when the element is attached to the DOM.
        *
