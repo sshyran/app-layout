@@ -21,3 +21,5 @@ git pull
 cd -
 
 vulcanize --inline-css --inline-scripts ../app-layout/templates/pesto/index.html > templates-sw/pesto/index.html
+vulcanize --inline-css --inline-scripts ../app-layout/templates/publishing/index.html > templates-sw/publishing/index.html
+vulcanize --inline-css --inline-scripts ../app-layout/templates/shrine/index.html > templates-sw/shrine/index.html
