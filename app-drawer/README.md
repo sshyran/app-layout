@@ -4,16 +4,16 @@ app-drawer is a navigation drawer that can slide in from the left or right.
 
 Example:
 
-Add a drawer on the left side of the screen:
+Align the drawer at the start, which is left in LTR layouts (default):
 
 ```html
 <app-drawer opened></app-drawer>
 ```
 
-Add a drawer on the right side of the screen:
+Align the drawer at the end:
 
 ```html
-<app-drawer position="right" opened></app-drawer>
+<app-drawer align="end" opened></app-drawer>
 ```
 
 To make the contents of the drawer scrollable, create a wrapper for the scroll
@@ -29,5 +29,6 @@ content, and apply height and overflow styles to it.
 
 Custom property                  | Description                            | Default
 ---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
 `--app-drawer-content-container` | Mixin for the drawer content container | {}
 `--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)

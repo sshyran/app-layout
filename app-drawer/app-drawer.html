@@ -16,16 +16,16 @@ app-drawer is a navigation drawer that can slide in from the left or right.
 
 Example:
 
-Add a drawer on the left side of the screen (default):
+Align the drawer at the start, which is left in LTR layouts (default):
 
 ```html
 <app-drawer opened></app-drawer>
 ```
 
-Add a drawer on the right side of the screen:
+Align the drawer at the end:
 
 ```html
-<app-drawer position="right" opened></app-drawer>
+<app-drawer align="end" opened></app-drawer>
 ```
 
 To make the contents of the drawer scrollable, create a wrapper for the scroll
@@ -41,6 +41,7 @@ content, and apply height and overflow styles to it.
 
 Custom property                  | Description                            | Default
 ---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
 `--app-drawer-content-container` | Mixin for the drawer content container | {}
 `--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
 
@@ -51,12 +52,38 @@ Custom property                  | Description                            | Defa
 
   <style>
 
-    #contentContainer {
+    :host {
       position: fixed;
       top: -120px;
       bottom: -120px;
       left: 0;
-      width: 256px;
+      right: 0;
+      visibility: hidden;
+      transition: visibility 0.2s ease;
+    }
+
+    :host([opened]) {
+      visibility: visible;
+    }
+
+    :host([persistent]) {
+      width: var(--app-drawer-width, 256px);
+    }
+
+    :host([persistent][position=left]) {
+      right: auto;
+    }
+
+    :host([persistent][position=right]) {
+      left: auto;
+    }
+
+    #contentContainer {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: var(--app-drawer-width, 256px);
       background-color: #FFF;
       padding: 120px 0;
 
@@ -70,7 +97,7 @@ Custom property                  | Description                            | Defa
       @apply(--app-drawer-content-container);
     }
 
-    :host([position=right]) > #contentContainer {
+    #contentContainer[position=right] {
       left: auto;
       right: 0;
 
@@ -85,9 +112,10 @@ Custom property                  | Description                            | Defa
       left: 100%;
       width: 15px;
       content: '';
+      visibility: visible;
     }
 
-    :host([swipe-open][position=right]) > #contentContainer::after {
+    :host([swipe-open]) > #contentContainer[position=right]::after {
       left: auto;
       right: 100%;
     }
@@ -98,40 +126,28 @@ Custom property                  | Description                            | Defa
     }
 
     #scrim {
-      position: fixed;
-      top: -120px;
+      position: absolute;
+      top: 0;
+      bottom: 0;
       left: 0;
       right: 0;
-      bottom: -120px;
       background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
       opacity: 0;
-      visibility: hidden;
-
-      transition: 0.2s ease;
-      transition-property: opacity, visibility;
+      transition: opacity 0.2s ease;
 
       -webkit-transform: translateZ(0);
       transform:  translateZ(0);
     }
 
-    /**
-     * NOTE(keanulee): IE/Edge does not properly update element styles when using
-     * dynamically inserted style tags that match with :not([attribute]) rules,
-     * so we can't do this instead:
-     *
-     *  :host([opened]:not([persistent])) > #scrim {
-     *    opacity: 1;
-     *    visibility: visible;
-     *  }
-     *
-     * Ref https://goo.gl/1UMIMk
-     */
     :host([opened]) > #scrim {
       opacity: 1;
-      visibility: visible;
     }
 
     :host([opened][persistent]) > #scrim {
+      /**
+       * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+       * scrim from showing when toggling between closed and opened/persistent.
+       */
       opacity: 0;
       visibility: hidden;
     }
@@ -142,7 +158,7 @@ Custom property                  | Description                            | Defa
 
     <div id="scrim" on-tap="_scrimTapHandler"></div>
 
-    <div id="contentContainer">
+    <div id="contentContainer" position$="{{position}}">
       <content></content>
     </div>
 
@@ -176,12 +192,22 @@ Custom property                  | Description                            | Defa
         },
 
         /**
-         * The position of the drawer on the screen ('left' or 'right').
+         * The alignment of the drawer on the screen ('start', 'end', 'left', or 'right').
+         * 'start' computes to left and 'end' to right in LTR layout and vice versa in RTL
+         * layout.
+         */
+        align: {
+          type: String,
+          value: 'start',
+        },
+
+        /**
+         * The computed, read-only position of the drawer on the screen ('left' or 'right').
          */
         position: {
           type: String,
-          value: 'left',
-          reflectToAttribute: true
+          readOnly: true,
+          value: 'left'
         },
 
         /**
@@ -202,7 +228,8 @@ Custom property                  | Description                            | Defa
 
       observers: [
         'resetLayout(position)',
-        '_updateDocScroll(persistent)'
+        '_updateDocScroll(persistent)',
+        '_resetPosition(align)'
       ],
 
       _translateOffset: 0,
@@ -211,15 +238,23 @@ Custom property                  | Description                            | Defa
 
       _isDrawerFlinging: false,
 
-      attached: function() {
+      ready: function() {
         // Set the scroll direction so you can vertically scroll inside the drawer.
         this.setScrollDirection('y');
 
         // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
         // may need to set the initial opened state which should not be transitioned).
-        this.$.contentContainer.style.transition = 'none';
+        this.$.contentContainer.style.transitionDuration = '0s';
+      },
+
+      attached: function() {
+        // Reset position when drawer is attached and can get its computed direction.
+        this._resetPosition();
+
+        // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
+        // may need to set the initial opened state which should not be transitioned).
         this.async(function() {
-          this.$.contentContainer.style.transition = '';
+          this.$.contentContainer.style.transitionDuration = '';
         });
       },
 
@@ -259,15 +294,26 @@ Custom property                  | Description                            | Defa
         }, 1);
       },
 
-      _scrimTapHandler: function() {
-        if (this.persistent) {
-          return;
-        }
+      _isRTL: function() {
+        return window.getComputedStyle(this).direction === 'rtl';
+      },
 
-        // This debouncer is needed because of Polymer/polymer#3405.
-        this.debounce('_scrimTapHandler', function() {
+      _resetPosition: function() {
+        switch (this.align) {
+          case 'start':
+            this._setPosition(this._isRTL() ? 'right' : 'left');
+            return;
+          case 'end':
+            this._setPosition(this._isRTL() ? 'left' : 'right');
+            return;
+        }
+        this._setPosition(this.align);
+      },
+
+      _scrimTapHandler: function() {
+        if (!this.persistent) {
           this.opened = false;
-        }, 1);
+        }
       },
 
       _track: function(event) {
@@ -295,10 +341,10 @@ Custom property                  | Description                            | Defa
         // Disable transitions since style attributes will reflect user track events.
         this.$.contentContainer.style.transitionDuration = '0s';
         this.$.scrim.style.transitionDuration = '0s';
-        this.$.scrim.style.visibility = 'visible';
+        this.style.visibility = 'visible';
 
         var rect = this.$.contentContainer.getBoundingClientRect();
-        if (this.position == 'left') {
+        if (this.position === 'left') {
           this._translateOffset = rect.left;
         } else {
           this._translateOffset = rect.right - window.innerWidth;
@@ -313,28 +359,25 @@ Custom property                  | Description                            | Defa
       },
 
       _trackEnd: function(event) {
-        // Track handler takes precedence over scrim tap handler. See Polymer/polymer#3405.
-        this.cancelDebouncer('_scrimTapHandler');
-
         // Calculate the velocity.
         this._velocity = this._calculateVelocity(event);
 
         // No longer need the track events after calculating velocity - allow them to be GC'd.
         this._trackEvents = null;
 
-        if (Math.abs(this._velocity) > this.MIN_FLING_VELOCITY) {
-          // If velocity is above the threshold, fling the drawer in the same direction.
-          this._flingDrawer(event);
-        } else {
-          // Otherwise, toggle the opened state based on the position of the drawer.
-          var halfWidth = this.getWidth() / 2;
-          if (event.detail.dx < -halfWidth) {
-            this.opened = this.position === 'right';
-          } else if (event.detail.dx > halfWidth) {
-            this.opened = this.position === 'left';
-          }
-          this._resetStyleAttributes();
+        if (this._flingDrawer(event)) {
+          return;
         }
+
+        // If the drawer is not flinging, toggle the opened state based on the position of
+        // the drawer.
+        var halfWidth = this.getWidth() / 2;
+        if (event.detail.dx < -halfWidth) {
+          this.opened = this.position === 'right';
+        } else if (event.detail.dx > halfWidth) {
+          this.opened = this.position === 'left';
+        }
+        this._resetStyleAttributes();
       },
 
       _calculateVelocity: function(event) {
@@ -342,7 +385,7 @@ Custom property                  | Description                            | Defa
         var timeLowerBound = Date.now() - 100;
         var trackEvent;
         var min = 0;
-        var max = this._trackEvents.length - 1;        
+        var max = this._trackEvents.length - 1;
 
         while (min <= max) {
           // Floor of average of min and max.
@@ -364,13 +407,34 @@ Custom property                  | Description                            | Defa
         return 0;
       },
 
+      /**
+       * @return {boolean} True if the drawer will be flinging, false otherwise.
+       */
       _flingDrawer: function(event) {
+        // Do not fling if velocity is not above a threshold.
+        if (Math.abs(this._velocity) < this.MIN_FLING_VELOCITY) {
+          return false;
+        }
+
         var x = event.detail.dx + this._translateOffset;
         var drawerWidth = this.getWidth();
         var isPositionLeft = this.position === 'left';
         var isVelocityPositive = this._velocity > 0;
         var isClosingLeft = !isVelocityPositive && isPositionLeft;
         var isClosingRight = isVelocityPositive && !isPositionLeft;
+        var dx;
+        if (isClosingLeft) {
+          dx = -(x + drawerWidth);
+        } else if (isClosingRight) {
+          dx = (drawerWidth - x);
+        } else {
+          dx = -x;
+        }
+
+        // Do not fling if there is no difference between the current and end state.
+        if ((isVelocityPositive && dx <= 0) || (!isVelocityPositive && dx >= 0)) {
+          return false;
+        }
 
         // Enforce a minimum transition velocity to make the drawer feel snappy.
         if (isVelocityPositive) {
@@ -381,15 +445,7 @@ Custom property                  | Description                            | Defa
 
         // Calculate the amount of time needed to finish the transition based on the initial
         // slope of the timing function.
-        var duration;
-        if (isClosingLeft) {
-          duration = (this.FLING_INITIAL_SLOPE * -(x + drawerWidth) / this._velocity) + 'ms';
-        } else if (isClosingRight) {
-          duration = (this.FLING_INITIAL_SLOPE * (drawerWidth - x) / this._velocity) + 'ms';
-        } else {
-          duration = (this.FLING_INITIAL_SLOPE * -x / this._velocity) + 'ms';
-        }
-
+        var duration = (this.FLING_INITIAL_SLOPE * dx / this._velocity) + 'ms';
         this.$.contentContainer.style.transitionDuration = duration;
         this.$.contentContainer.style.transitionTimingFunction = this.FLING_TIMING_FUNCTION;
         this.$.scrim.style.transitionDuration = duration;
@@ -405,6 +461,7 @@ Custom property                  | Description                            | Defa
         }
 
         this._isDrawerFlinging = true;
+        return true;
       },
 
       _transitionEnd: function(event) {
@@ -434,9 +491,9 @@ Custom property                  | Description                            | Defa
       },
 
       _resetStyleAttributes: function() {
+        this.style.visibility = '';
         this.$.contentContainer.style.transitionDuration = '';
         this.$.scrim.style.transitionDuration = '';
-        this.$.scrim.style.visibility = '';
         this.$.scrim.style.opacity = '';
         this.transform('', this.$.contentContainer);
       },
