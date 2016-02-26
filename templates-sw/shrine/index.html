@@ -22,7 +22,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
  * Code distributed by Google as part of the polymer project is also
  * subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
  */
-// @version 0.7.20
+// @version 0.7.21
 (function() {
   window.WebComponents = window.WebComponents || {
     flags: {}
@@ -927,14 +927,29 @@ if (typeof WeakMap === "undefined") {
   }
 })(self);
 
-if (typeof HTMLTemplateElement === "undefined") {
-  (function() {
-    var TEMPLATE_TAG = "template";
+(function() {
+  var needsTemplate = typeof HTMLTemplateElement === "undefined";
+  var needsCloning = function() {
+    if (!needsTemplate) {
+      var frag = document.createDocumentFragment();
+      var t = document.createElement("template");
+      frag.appendChild(t);
+      t.content.appendChild(document.createElement("div"));
+      var clone = frag.cloneNode(true);
+      return clone.firstChild.content.childNodes.length === 0;
+    }
+  }();
+  var TEMPLATE_TAG = "template";
+  var TemplateImpl = function() {};
+  if (needsTemplate) {
     var contentDoc = document.implementation.createHTMLDocument("template");
     var canDecorate = true;
-    HTMLTemplateElement = function() {};
-    HTMLTemplateElement.prototype = Object.create(HTMLElement.prototype);
-    HTMLTemplateElement.decorate = function(template) {
+    var templateStyle = document.createElement("style");
+    templateStyle.textContent = TEMPLATE_TAG + "{display:none;}";
+    var head = document.head;
+    head.insertBefore(templateStyle, head.firstElementChild);
+    TemplateImpl.prototype = Object.create(HTMLElement.prototype);
+    TemplateImpl.decorate = function(template) {
       if (template.content) {
         return;
       }
@@ -955,7 +970,7 @@ if (typeof HTMLTemplateElement === "undefined") {
             },
             set: function(text) {
               contentDoc.body.innerHTML = text;
-              HTMLTemplateElement.bootstrap(contentDoc);
+              TemplateImpl.bootstrap(contentDoc);
               while (this.content.firstChild) {
                 this.content.removeChild(this.content.firstChild);
               }
@@ -965,27 +980,30 @@ if (typeof HTMLTemplateElement === "undefined") {
             },
             configurable: true
           });
+          template.cloneNode = function(deep) {
+            return TemplateImpl.cloneNode(this, deep);
+          };
         } catch (err) {
           canDecorate = false;
         }
       }
-      HTMLTemplateElement.bootstrap(template.content);
+      TemplateImpl.bootstrap(template.content);
     };
-    HTMLTemplateElement.bootstrap = function(doc) {
+    TemplateImpl.bootstrap = function(doc) {
       var templates = doc.querySelectorAll(TEMPLATE_TAG);
       for (var i = 0, l = templates.length, t; i < l && (t = templates[i]); i++) {
-        HTMLTemplateElement.decorate(t);
+        TemplateImpl.decorate(t);
       }
     };
     document.addEventListener("DOMContentLoaded", function() {
-      HTMLTemplateElement.bootstrap(document);
+      TemplateImpl.bootstrap(document);
     });
     var createElement = document.createElement;
     document.createElement = function() {
       "use strict";
       var el = createElement.apply(document, arguments);
       if (el.localName == "template") {
-        HTMLTemplateElement.decorate(el);
+        TemplateImpl.decorate(el);
       }
       return el;
     };
@@ -1008,8 +1026,61 @@ if (typeof HTMLTemplateElement === "undefined") {
     function escapeData(s) {
       return s.replace(escapeDataRegExp, escapeReplace);
     }
-  })();
-}
+  }
+  if (needsTemplate || needsCloning) {
+    var nativeCloneNode = Node.prototype.cloneNode;
+    TemplateImpl.cloneNode = function(template, deep) {
+      var clone = nativeCloneNode.call(template);
+      if (this.decorate) {
+        this.decorate(clone);
+      }
+      if (deep) {
+        clone.content.appendChild(nativeCloneNode.call(template.content, true));
+        this.fixClonedDom(clone.content, template.content);
+      }
+      return clone;
+    };
+    TemplateImpl.fixClonedDom = function(clone, source) {
+      var s$ = source.querySelectorAll(TEMPLATE_TAG);
+      var t$ = clone.querySelectorAll(TEMPLATE_TAG);
+      for (var i = 0, l = t$.length, t, s; i < l; i++) {
+        s = s$[i];
+        t = t$[i];
+        if (this.decorate) {
+          this.decorate(s);
+        }
+        t.parentNode.replaceChild(s.cloneNode(true), t);
+      }
+    };
+    var originalImportNode = document.importNode;
+    Node.prototype.cloneNode = function(deep) {
+      var dom = nativeCloneNode.call(this, deep);
+      if (deep) {
+        TemplateImpl.fixClonedDom(dom, this);
+      }
+      return dom;
+    };
+    document.importNode = function(element, deep) {
+      if (element.localName === TEMPLATE_TAG) {
+        return TemplateImpl.cloneNode(element, deep);
+      } else {
+        var dom = originalImportNode.call(document, element, deep);
+        if (deep) {
+          TemplateImpl.fixClonedDom(dom, element);
+        }
+        return dom;
+      }
+    };
+    if (needsCloning) {
+      HTMLTemplateElement.prototype.cloneNode = function(deep) {
+        return TemplateImpl.cloneNode(this, deep);
+      };
+    }
+  }
+  if (needsTemplate) {
+    HTMLTemplateElement = TemplateImpl;
+  }
+})();
 
 (function(scope) {
   "use strict";
@@ -1610,7 +1681,7 @@ window.HTMLImports.addModule(function(scope) {
       if (doc && this._mayParse.indexOf(doc) < 0) {
         this._mayParse.push(doc);
         var nodes = doc.querySelectorAll(this.parseSelectorsForNode(doc));
-        for (var i = 0, l = nodes.length, p = 0, n; i < l && (n = nodes[i]); i++) {
+        for (var i = 0, l = nodes.length, n; i < l && (n = nodes[i]); i++) {
           if (!this.isParsed(n)) {
             if (this.hasResource(n)) {
               return nodeIsImport(n) ? this.nextToParseInDoc(n.__doc, n) : n;
@@ -2444,7 +2515,7 @@ window.CustomElements.addModule(function(scope) {
   head.insertBefore(style, head.firstChild);
 })(window.WebComponents);</script>
 
-  <link href="https://fonts.googleapis.com/css?family=Abril+Fatface" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Abril+Fatface" type="text/css">
   <link rel="manifest" href="manifest.json">
   <script>(function () {
 function resolve() {
@@ -2475,6 +2546,7 @@ var useShadow = wantShadow && hasShadow;
 var hasNativeImports = Boolean('import' in document.createElement('link'));
 var useNativeImports = hasNativeImports;
 var useNativeCustomElements = !window.CustomElements || window.CustomElements.useNative;
+var usePolyfillProto = !useNativeCustomElements && !Object.__proto__;
 return {
 wantShadow: wantShadow,
 hasShadow: hasShadow,
@@ -2482,7 +2554,8 @@ nativeShadow: nativeShadow,
 useShadow: useShadow,
 useNativeShadow: useShadow && nativeShadow,
 useNativeImports: useNativeImports,
-useNativeCustomElements: useNativeCustomElements
+useNativeCustomElements: useNativeCustomElements,
+usePolyfillProto: usePolyfillProto
 };
 }()
 };
@@ -2514,7 +2587,6 @@ prototype = Polymer.Base.chainObject(prototype, base);
 prototype.registerCallback();
 return prototype.constructor;
 };
-window.Polymer = Polymer;
 if (userPolymer) {
 for (var i in userPolymer) {
 Polymer[i] = userPolymer[i];
@@ -2600,7 +2672,6 @@ for (var i = 0, h; i < callbacks.length; i++) {
 h = callbacks[i];
 h[1].apply(h[0], h[2] || Polymer.nar);
 }
-;
 }
 };
 if (window.HTMLImports) {
@@ -2723,7 +2794,7 @@ createdCallback: function () {
 this.register();
 },
 register: function (id) {
-var id = id || this.id || this.getAttribute('name') || this.getAttribute('is');
+id = id || this.id || this.getAttribute('name') || this.getAttribute('is');
 if (id) {
 this.id = id;
 modules[id] = this;
@@ -2783,11 +2854,16 @@ this.behaviors = this._desugarSomeBehaviors(this.behaviors);
 }
 },
 _desugarSomeBehaviors: function (behaviors) {
+var behaviorSet = [];
 behaviors = this._flattenBehaviorsList(behaviors);
 for (var i = behaviors.length - 1; i >= 0; i--) {
-this._mixinBehavior(behaviors[i]);
+var b = behaviors[i];
+if (behaviorSet.indexOf(b) === -1) {
+this._mixinBehavior(b);
+behaviorSet.unshift(b);
 }
-return behaviors;
+}
+return behaviorSet;
 },
 _flattenBehaviorsList: function (behaviors) {
 var flat = [];
@@ -2909,7 +2985,6 @@ if (info) {
 return info;
 }
 }
-;
 }
 return info || Polymer.nob;
 },
@@ -2925,7 +3000,7 @@ return p;
 },
 _prepPropertyInfo: function () {
 this._propertyInfo = {};
-for (var i = 0, p; i < this.behaviors.length; i++) {
+for (var i = 0; i < this.behaviors.length; i++) {
 this._addPropertyInfo(this._propertyInfo, this.behaviors[i].properties);
 }
 this._addPropertyInfo(this._propertyInfo, this.properties);
@@ -2960,26 +3035,17 @@ t.readOnly = s.readOnly;
 });
 Polymer.CaseMap = {
 _caseMap: {},
+_rx: {
+dashToCamel: /-[a-z]/g,
+camelToDash: /([A-Z])/g
+},
 dashToCamelCase: function (dash) {
-var mapped = Polymer.CaseMap._caseMap[dash];
-if (mapped) {
-return mapped;
-}
-if (dash.indexOf('-') < 0) {
-return Polymer.CaseMap._caseMap[dash] = dash;
-}
-return Polymer.CaseMap._caseMap[dash] = dash.replace(/-([a-z])/g, function (m) {
+return this._caseMap[dash] || (this._caseMap[dash] = dash.indexOf('-') < 0 ? dash : dash.replace(this._rx.dashToCamel, function (m) {
 return m[1].toUpperCase();
-});
+}));
 },
 camelToDashCase: function (camel) {
-var mapped = Polymer.CaseMap._caseMap[camel];
-if (mapped) {
-return mapped;
-}
-return Polymer.CaseMap._caseMap[camel] = camel.replace(/([a-z][A-Z])/g, function (g) {
-return g[0] + '-' + g[1].toLowerCase();
-});
+return this._caseMap[camel] || (this._caseMap[camel] = camel.replace(this._rx.camelToDash, '-$1').toLowerCase());
 }
 };
 Polymer.Base._addFeature({
@@ -3019,7 +3085,7 @@ this._setAttributeToProperty(model, info.attribute, i, info);
 },
 _setAttributeToProperty: function (model, attribute, property, info) {
 if (!this._serializing) {
-var property = property || Polymer.CaseMap.dashToCamelCase(attribute);
+property = property || Polymer.CaseMap.dashToCamelCase(attribute);
 info = info || this._propertyInfo && this._propertyInfo[property];
 if (info && !info.readOnly) {
 var v = this.getAttribute(attribute);
@@ -3049,7 +3115,7 @@ case Number:
 value = Number(value);
 break;
 case Boolean:
-value = value !== null;
+value = value != null;
 break;
 case Object:
 try {
@@ -3080,7 +3146,7 @@ case 'boolean':
 return value ? '' : undefined;
 case 'object':
 if (value instanceof Date) {
-return value;
+return value.toString();
 } else if (value) {
 try {
 return JSON.stringify(value);
@@ -3093,7 +3159,7 @@ return value != null ? value : undefined;
 }
 }
 });
-Polymer.version = '1.2.4';
+Polymer.version = '1.3.0';
 Polymer.Base._addFeature({
 _registerFeatures: function () {
 this._prepIs();
@@ -3234,8 +3300,8 @@ distances[i][0] = i;
 }
 for (var j = 0; j < columnCount; j++)
 distances[0][j] = j;
-for (var i = 1; i < rowCount; i++) {
-for (var j = 1; j < columnCount; j++) {
+for (i = 1; i < rowCount; i++) {
+for (j = 1; j < columnCount; j++) {
 if (this.equals(current[currentStart + j - 1], old[oldStart + i - 1]))
 distances[i][j] = distances[i - 1][j - 1];
 else {
@@ -3315,7 +3381,7 @@ return [splice];
 } else if (oldStart == oldEnd)
 return [newSplice(currentStart, [], currentEnd - currentStart)];
 var ops = this.spliceOperationsFromEditDistances(this.calcEditDistances(current, currentStart, currentEnd, old, oldStart, oldEnd));
-var splice = undefined;
+splice = undefined;
 var splices = [];
 var index = currentStart;
 var oldIndex = oldStart;
@@ -3481,7 +3547,7 @@ return { getInnerHTML: getInnerHTML };
 var nativeInsertBefore = Element.prototype.insertBefore;
 var nativeAppendChild = Element.prototype.appendChild;
 var nativeRemoveChild = Element.prototype.removeChild;
-var TreeApi = Polymer.TreeApi = {
+Polymer.TreeApi = {
 arrayCopyChildNodes: function (parent) {
 var copy = [], i = 0;
 for (var n = parent.firstChild; n; n = n.nextSibling) {
@@ -4538,7 +4604,6 @@ return this.node.classList.contains.apply(this.node.classList, arguments);
 'use strict';
 var DomApi = Polymer.DomApi.ctor;
 var Settings = Polymer.Settings;
-var hasDomApi = Polymer.DomApi.hasDomApi;
 DomApi.EffectiveNodesObserver = function (domApi) {
 this.domApi = domApi;
 this.node = this.domApi.node;
@@ -4591,7 +4656,7 @@ if (this._hasListeners()) {
 this._scheduleNotify();
 }
 },
-_notify: function (mxns) {
+_notify: function () {
 this._beforeCallListeners();
 this._callListeners();
 },
@@ -4662,8 +4727,8 @@ for (var j = 0, n; j < s.removed.length && (n = s.removed[j]); j++) {
 info.removedNodes.push(n);
 }
 }
-for (var i = 0, s; i < splices.length && (s = splices[i]); i++) {
-for (var j = s.index; j < s.index + s.addedCount; j++) {
+for (i = 0, s; i < splices.length && (s = splices[i]); i++) {
+for (j = s.index; j < s.index + s.addedCount; j++) {
 info.addedNodes.push(newNodes[j]);
 }
 }
@@ -4681,7 +4746,6 @@ enableShadowAttributeTracking: function () {
 if (Settings.useShadow) {
 var baseSetup = DomApi.EffectiveNodesObserver.prototype._setup;
 var baseCleanup = DomApi.EffectiveNodesObserver.prototype._cleanup;
-var beforeCallListeners = DomApi.EffectiveNodesObserver.prototype._beforeCallListeners;
 Polymer.Base.extend(DomApi.EffectiveNodesObserver.prototype, {
 _setup: function () {
 if (!this._observer) {
@@ -4996,7 +5060,7 @@ d -= s.addedCount;
 }
 for (var i = 0, s, next; i < splices.length && (s = splices[i]); i++) {
 next = composed[s.index];
-for (var j = s.index, n; j < s.index + s.addedCount; j++) {
+for (j = s.index, n; j < s.index + s.addedCount; j++) {
 n = children[j];
 TreeApi.Composed.insertBefore(container, n, next);
 composed.splice(j, 0, n);
@@ -5273,7 +5337,7 @@ _parseNodeAnnotations: function (node, list, stripWhiteSpace) {
 return node.nodeType === Node.TEXT_NODE ? this._parseTextNodeAnnotation(node, list) : this._parseElementAnnotations(node, list, stripWhiteSpace);
 },
 _bindingRegex: function () {
-var IDENT = '(?:' + '[a-zA-Z_$][\\w.:$-*]*' + ')';
+var IDENT = '(?:' + '[a-zA-Z_$][\\w.:$\\-*]*' + ')';
 var NUMBER = '(?:' + '[-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?' + ')';
 var SQUOTE_STRING = '(?:' + '\'(?:[^\'\\\\]|\\\\.)*\'' + ')';
 var DQUOTE_STRING = '(?:' + '"(?:[^"\\\\]|\\\\.)*"' + ')';
@@ -5452,12 +5516,14 @@ if (node.localName === 'input' && origName === 'value') {
 node.setAttribute(origName, '');
 }
 node.removeAttribute(origName);
+var propertyName = Polymer.CaseMap.dashToCamelCase(name);
 if (kind === 'property') {
-name = Polymer.CaseMap.dashToCamelCase(name);
+name = propertyName;
 }
 return {
 kind: kind,
 name: name,
+propertyName: propertyName,
 parts: parts,
 literal: literal,
 isCompound: parts.length !== 1
@@ -5562,8 +5628,10 @@ var b = note.bindings[j];
 for (var k = 0; k < b.parts.length; k++) {
 var p = b.parts[k];
 if (!p.literal) {
-p.signature = this._parseMethod(p.value);
-if (!p.signature) {
+var signature = this._parseMethod(p.value);
+if (signature) {
+p.signature = signature;
+} else {
 p.model = this._modelForPath(p.value);
 }
 }
@@ -5627,7 +5695,7 @@ this._marshalAnnotatedNodes();
 this._marshalAnnotatedListeners();
 }
 },
-_configureAnnotationReferences: function (config) {
+_configureAnnotationReferences: function () {
 var notes = this._notes;
 var nodes = this._nodes;
 for (var i = 0; i < notes.length; i++) {
@@ -5956,7 +6024,7 @@ if (type === 'touchstart' || type === 'touchmove') {
 Gestures.handleTouchAction(ev);
 }
 }
-if (type === 'touchend') {
+if (type === 'touchend' && !ev.__polymerSimulatedTouch) {
 POINTERSTATE.mouse.target = Polymer.dom(ev).rootTarget;
 ignoreMouse(true);
 }
@@ -5970,14 +6038,12 @@ var recognizers = Gestures.recognizers;
 for (var i = 0, r; i < recognizers.length; i++) {
 r = recognizers[i];
 if (gs[r.name] && !handled[r.name]) {
-if (r.flow && r.flow.start.indexOf(ev.type) > -1) {
-if (r.reset) {
+if (r.flow && r.flow.start.indexOf(ev.type) > -1 && r.reset) {
 r.reset();
 }
 }
 }
-}
-for (var i = 0, r; i < recognizers.length; i++) {
+for (i = 0, r; i < recognizers.length; i++) {
 r = recognizers[i];
 if (gs[r.name] && !handled[r.name]) {
 handled[r.name] = true;
@@ -6242,6 +6308,9 @@ var movefn = function movefn(e) {
 var x = e.clientX, y = e.clientY;
 if (self.hasMovedEnough(x, y)) {
 self.info.state = self.info.started ? e.type === 'mouseup' ? 'end' : 'track' : 'start';
+if (self.info.state === 'start') {
+Gestures.prevent('tap');
+}
 self.info.addMove({
 x: x,
 y: y
@@ -6256,7 +6325,6 @@ self.info.started = true;
 };
 var upfn = function upfn(e) {
 if (self.info.started) {
-Gestures.prevent('tap');
 movefn(e);
 }
 untrackDocument(self.info);
@@ -6275,6 +6343,9 @@ var t = Gestures.findOriginalTarget(e);
 var ct = e.changedTouches[0];
 var x = ct.clientX, y = ct.clientY;
 if (this.hasMovedEnough(x, y)) {
+if (this.info.state === 'start') {
+Gestures.prevent('tap');
+}
 this.info.addMove({
 x: x,
 y: y
@@ -6288,7 +6359,6 @@ touchend: function (e) {
 var t = Gestures.findOriginalTarget(e);
 var ct = e.changedTouches[0];
 if (this.info.started) {
-Gestures.prevent('tap');
 this.info.state = 'end';
 this.info.addMove({
 x: ct.clientX,
@@ -6497,7 +6567,7 @@ return n.nodeType === Node.ELEMENT_NODE;
 fire: function (type, detail, options) {
 options = options || Polymer.nob;
 var node = options.node || this;
-var detail = detail === null || detail === undefined ? {} : detail;
+detail = detail === null || detail === undefined ? {} : detail;
 var bubbles = options.bubbles === undefined ? true : options.bubbles;
 var cancelable = Boolean(options.cancelable);
 var useCache = options._useCache;
@@ -6681,7 +6751,7 @@ _sortPropertyEffects: function () {
 var EFFECT_ORDER = {
 'compute': 0,
 'annotation': 1,
-'computedAnnotation': 2,
+'annotatedComputation': 2,
 'reflect': 3,
 'notify': 4,
 'observer': 5,
@@ -6714,11 +6784,11 @@ Object.defineProperty(model, property, defun);
 upper: function (name) {
 return name[0].toUpperCase() + name.substring(1);
 },
-_addAnnotatedListener: function (model, index, property, path, event) {
+_addAnnotatedListener: function (model, index, property, path, event, negated) {
 if (!model._bindListeners) {
 model._bindListeners = [];
 }
-var fn = this._notedListenerFactory(property, path, this._isStructured(path));
+var fn = this._notedListenerFactory(property, path, this._isStructured(path), negated);
 var eventName = event || Polymer.CaseMap.camelToDashCase(property) + '-changed';
 model._bindListeners.push({
 index: index,
@@ -6734,12 +6804,15 @@ return path.indexOf('.') > 0;
 _isEventBogus: function (e, target) {
 return e.path && e.path[0] !== target;
 },
-_notedListenerFactory: function (property, path, isStructured) {
+_notedListenerFactory: function (property, path, isStructured, negated) {
 return function (target, value, targetPath) {
 if (targetPath) {
 this._notifyPath(this._fixPath(path, property, targetPath), value);
 } else {
 value = target[property];
+if (negated) {
+value = !value;
+}
 if (!isStructured) {
 this[path] = value;
 } else {
@@ -6759,7 +6832,6 @@ for (var i = 0, l = b$.length, info; i < l && (info = b$[i]); i++) {
 var node = inst._nodes[info.index];
 this._addNotifyListener(node, inst, info.event, info.changedFn);
 }
-;
 },
 _addNotifyListener: function (element, context, event, changedFn) {
 element.addEventListener(event, function (e) {
@@ -6769,7 +6841,7 @@ return context._notifyListener(changedFn, e);
 };
 Polymer.Base.extend(Polymer.Bind, {
 _shouldAddListener: function (effect) {
-return effect.name && effect.kind != 'attribute' && effect.kind != 'text' && !effect.isCompound && effect.parts[0].mode === '{' && !effect.parts[0].negate;
+return effect.name && effect.kind != 'attribute' && effect.kind != 'text' && !effect.isCompound && effect.parts[0].mode === '{';
 },
 _annotationEffect: function (source, value, effect) {
 if (source != effect.value) {
@@ -6807,19 +6879,22 @@ var args = Polymer.Bind._marshalArgs(this.__data__, effect, source, value);
 if (args) {
 fn.apply(this, args);
 }
+} else if (effect.dynamicFn) {
 } else {
 this._warn(this._logf('_complexObserverEffect', 'observer method `' + effect.method + '` not defined'));
 }
 },
 _computeEffect: function (source, value, effect) {
-var args = Polymer.Bind._marshalArgs(this.__data__, effect, source, value);
-if (args) {
 var fn = this[effect.method];
 if (fn) {
-this.__setProperty(effect.name, fn.apply(this, args));
+var args = Polymer.Bind._marshalArgs(this.__data__, effect, source, value);
+if (args) {
+var computedvalue = fn.apply(this, args);
+this.__setProperty(effect.name, computedvalue);
+}
+} else if (effect.dynamicFn) {
 } else {
 this._warn(this._logf('_computeEffect', 'compute method `' + effect.method + '` not defined'));
-}
 }
 },
 _annotatedComputationEffect: function (source, value, effect) {
@@ -6834,6 +6909,7 @@ computedvalue = !computedvalue;
 }
 this._applyEffectValue(effect, computedvalue);
 }
+} else if (effect.dynamicFn) {
 } else {
 computedHost._warn(computedHost._logf('_annotatedComputationEffect', 'compute method `' + effect.method + '` not defined'));
 }
@@ -6841,6 +6917,7 @@ computedHost._warn(computedHost._logf('_annotatedComputationEffect', 'compute me
 _marshalArgs: function (model, effect, path, value) {
 var values = [];
 var args = effect.args;
+var bailoutEarly = args.length > 1 || effect.dynamicFn;
 for (var i = 0, l = args.length; i < l; i++) {
 var arg = args[i];
 var name = arg.name;
@@ -6852,7 +6929,7 @@ v = Polymer.Base._get(name, model);
 } else {
 v = model[name];
 }
-if (args.length > 1 && v === undefined) {
+if (bailoutEarly && v === undefined) {
 return;
 }
 if (arg.wildcard) {
@@ -6907,12 +6984,23 @@ Polymer.Bind.ensurePropertyEffects(this, p);
 },
 _addComputedEffect: function (name, expression) {
 var sig = this._parseMethod(expression);
+var dynamicFn = sig.dynamicFn;
 for (var i = 0, arg; i < sig.args.length && (arg = sig.args[i]); i++) {
 this._addPropertyEffect(arg.model, 'compute', {
 method: sig.method,
 args: sig.args,
 trigger: arg,
-name: name
+name: name,
+dynamicFn: dynamicFn
+});
+}
+if (dynamicFn) {
+this._addPropertyEffect(sig.method, 'compute', {
+method: sig.method,
+args: sig.args,
+trigger: null,
+name: name,
+dynamicFn: dynamicFn
 });
 }
 },
@@ -6934,11 +7022,21 @@ var sig = this._parseMethod(observer);
 if (!sig) {
 throw new Error('Malformed observer expression \'' + observer + '\'');
 }
+var dynamicFn = sig.dynamicFn;
 for (var i = 0, arg; i < sig.args.length && (arg = sig.args[i]); i++) {
 this._addPropertyEffect(arg.model, 'complexObserver', {
 method: sig.method,
 args: sig.args,
-trigger: arg
+trigger: arg,
+dynamicFn: dynamicFn
+});
+}
+if (dynamicFn) {
+this._addPropertyEffect(sig.method, 'complexObserver', {
+method: sig.method,
+args: sig.args,
+trigger: null,
+dynamicFn: dynamicFn
 });
 }
 },
@@ -6952,7 +7050,7 @@ this._addAnnotationEffect(binding, i);
 },
 _addAnnotationEffect: function (note, index) {
 if (Polymer.Bind._shouldAddListener(note)) {
-Polymer.Bind._addAnnotatedListener(this, index, note.name, note.parts[0].value, note.parts[0].event);
+Polymer.Bind._addAnnotatedListener(this, index, note.name, note.parts[0].value, note.parts[0].event, note.parts[0].negate);
 }
 for (var i = 0; i < note.parts.length; i++) {
 var part = note.parts[i];
@@ -6963,6 +7061,7 @@ this._addPropertyEffect(part.model, 'annotation', {
 kind: note.kind,
 index: index,
 name: note.name,
+propertyName: note.propertyName,
 value: part.value,
 isCompound: note.isCompound,
 compoundIndex: part.compoundIndex,
@@ -6983,6 +7082,9 @@ if (!arg.literal) {
 this.__addAnnotatedComputationEffect(arg.model, index, note, part, arg);
 }
 }
+if (sig.dynamicFn) {
+this.__addAnnotatedComputationEffect(sig.method, index, note, part, null);
+}
 }
 },
 __addAnnotatedComputationEffect: function (property, index, note, part, trigger) {
@@ -6995,16 +7097,21 @@ name: note.name,
 negate: part.negate,
 method: part.signature.method,
 args: part.signature.args,
-trigger: trigger
+trigger: trigger,
+dynamicFn: part.signature.dynamicFn
 });
 },
 _parseMethod: function (expression) {
-var m = expression.match(/([^\s]+?)\((.*)\)/);
+var m = expression.match(/([^\s]+?)\(([\s\S]*)\)/);
 if (m) {
 var sig = {
 method: m[1],
 static: true
 };
+if (this.getPropertyInfo(sig.method) !== Polymer.nob) {
+sig.static = false;
+sig.dynamicFn = true;
+}
 if (m[2].trim()) {
 var args = m[2].replace(/\\,/g, '&comma;').split(',');
 return this._parseArgs(args, sig);
@@ -7092,6 +7199,8 @@ this._effectEffects('__static__', null, this._propertyEffects.__static__);
 }
 }
 });
+(function () {
+var usePolyfillProto = Polymer.Settings.usePolyfillProto;
 Polymer.Base._addFeature({
 _setupConfigure: function (initialConfig) {
 this._config = {};
@@ -7138,7 +7247,10 @@ this._distributeConfig(this._config);
 _configureProperties: function (properties, config) {
 for (var i in properties) {
 var c = properties[i];
-if (c.value !== undefined) {
+if (!usePolyfillProto && this.hasOwnProperty(i) && this._propertyEffects && this._propertyEffects[i]) {
+config[i] = this[i];
+delete this[i];
+} else if (c.value !== undefined) {
 var value = c.value;
 if (typeof value == 'function') {
 value = value.call(this, this._config);
@@ -7156,9 +7268,15 @@ if (fx) {
 for (var i = 0, l = fx.length, x; i < l && (x = fx[i]); i++) {
 if (x.kind === 'annotation' && !x.isCompound) {
 var node = this._nodes[x.effect.index];
-if (node._configValue) {
+var name = x.effect.propertyName;
+var isAttr = x.effect.kind == 'attribute';
+var hasEffect = node._propertyEffects && node._propertyEffects[name];
+if (node._configValue && (hasEffect || !isAttr)) {
 var value = p === x.effect.value ? config[p] : this._get(x.effect.value, config);
-node._configValue(x.effect.name, value);
+if (isAttr) {
+value = node.deserialize(this.serialize(value), node._propertyInfo[name].type);
+}
+node._configValue(name, value);
 }
 }
 }
@@ -7208,6 +7326,7 @@ h[0].call(this, h[1], h[2], h[3]);
 this._handlers = [];
 }
 });
+}());
 (function () {
 'use strict';
 Polymer.Base._addFeature({
@@ -7265,14 +7384,15 @@ array = Array.isArray(prop) ? prop : null;
 }
 if (array) {
 var coll = Polymer.Collection.get(array);
+var old, key;
 if (last[0] == '#') {
-var key = last;
-var old = coll.getItem(key);
+key = last;
+old = coll.getItem(key);
 last = array.indexOf(old);
 coll.setItem(key, value);
 } else if (parseInt(last, 10) == last) {
-var old = prop[last];
-var key = coll.getKey(old);
+old = prop[last];
+key = coll.getKey(old);
 parts[i] = key;
 coll.setItem(key, value);
 }
@@ -7453,7 +7573,7 @@ this._notifySplice(array, info.path, array.length, 0, [ret]);
 }
 return ret;
 },
-splice: function (path, start, deleteCount) {
+splice: function (path, start) {
 var info = {};
 var array = this._get(path, this, info);
 if (start < 0) {
@@ -7581,6 +7701,7 @@ if (s.indexOf(this.MEDIA_START) === 0) {
 node.type = this.types.MEDIA_RULE;
 } else if (s.match(this._rx.keyframesRule)) {
 node.type = this.types.KEYFRAMES_RULE;
+node.keyframesName = node.selector.split(this._rx.multipleSpaces).pop();
 }
 } else {
 if (s.indexOf(this.VAR_START) === 0) {
@@ -7680,14 +7801,14 @@ if (typeof rules === 'string') {
 rules = this.parser.parse(rules);
 }
 if (callback) {
-this.forEachStyleRule(rules, callback);
+this.forEachRule(rules, callback);
 }
 return this.parser.stringify(rules, preserveProperties);
 },
-forRulesInStyles: function (styles, callback) {
+forRulesInStyles: function (styles, styleRuleCallback, keyframesRuleCallback) {
 if (styles) {
 for (var i = 0, l = styles.length, s; i < l && (s = styles[i]); i++) {
-this.forEachStyleRule(this.rulesForStyle(s), callback);
+this.forEachRule(this.rulesForStyle(s), styleRuleCallback, keyframesRuleCallback);
 }
 }
 },
@@ -7697,20 +7818,25 @@ style.__cssRules = this.parser.parse(style.textContent);
 }
 return style.__cssRules;
 },
-forEachStyleRule: function (node, callback) {
+isKeyframesSelector: function (rule) {
+return rule.parent && rule.parent.type === this.ruleTypes.KEYFRAMES_RULE;
+},
+forEachRule: function (node, styleRuleCallback, keyframesRuleCallback) {
 if (!node) {
 return;
 }
 var skipRules = false;
 if (node.type === this.ruleTypes.STYLE_RULE) {
-callback(node);
-} else if (node.type === this.ruleTypes.KEYFRAMES_RULE || node.type === this.ruleTypes.MIXIN_RULE) {
+styleRuleCallback(node);
+} else if (keyframesRuleCallback && node.type === this.ruleTypes.KEYFRAMES_RULE) {
+keyframesRuleCallback(node);
+} else if (node.type === this.ruleTypes.MIXIN_RULE) {
 skipRules = true;
 }
 var r$ = node.rules;
 if (r$ && !skipRules) {
 for (var i = 0, l = r$.length, r; i < l && (r = r$[i]); i++) {
-this.forEachStyleRule(r, callback);
+this.forEachRule(r, styleRuleCallback, keyframesRuleCallback);
 }
 }
 },
@@ -7859,8 +7985,10 @@ this._transformRule(rule, this._transformComplexSelector, scope, hostScope);
 },
 _transformRule: function (rule, transformer, scope, hostScope) {
 var p$ = rule.selector.split(COMPLEX_SELECTOR_SEP);
+if (!styleUtil.isKeyframesSelector(rule)) {
 for (var i = 0, l = p$.length, p; i < l && (p = p$[i]); i++) {
 p$[i] = transformer.call(this, p, scope, hostScope);
+}
 }
 rule.selector = rule.transformedSelector = p$.join(COMPLEX_SELECTOR_SEP);
 },
@@ -7868,6 +7996,7 @@ _transformComplexSelector: function (selector, scope, hostScope) {
 var stop = false;
 var hostContext = false;
 var self = this;
+selector = selector.replace(CONTENT_START, HOST + ' $1');
 selector = selector.replace(SIMPLE_SELECTOR_SEP, function (m, c, s) {
 if (!stop) {
 var info = self._transformCompoundSelector(s, c, scope, hostScope);
@@ -7940,10 +8069,10 @@ SCOPE_NAME: 'style-scope'
 var SCOPE_NAME = api.SCOPE_NAME;
 var SCOPE_DOC_SELECTOR = ':not([' + SCOPE_NAME + '])' + ':not(.' + SCOPE_NAME + ')';
 var COMPLEX_SELECTOR_SEP = ',';
-var SIMPLE_SELECTOR_SEP = /(^|[\s>+~]+)([^\s>+~]+)/g;
+var SIMPLE_SELECTOR_SEP = /(^|[\s>+~]+)((?:\[.+?\]|[^\s>+~=\[])+)/g;
 var HOST = ':host';
 var ROOT = ':root';
-var HOST_PAREN = /(\:host)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))/g;
+var HOST_PAREN = /(:host)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))/g;
 var HOST_CONTEXT = ':host-context';
 var HOST_CONTEXT_PAREN = /(.*)(?::host-context)(?:\(((?:\([^)(]*\)|[^)(]*)+?)\))(.*)/;
 var CONTENT = '::content';
@@ -7953,6 +8082,7 @@ var CSS_ATTR_PREFIX = '[' + SCOPE_NAME + '~=';
 var CSS_ATTR_SUFFIX = ']';
 var PSEUDO_PREFIX = ':';
 var CLASS = 'class';
+var CONTENT_START = new RegExp('^(' + CONTENT + ')');
 return api;
 }();
 Polymer.StyleExtends = function () {
@@ -7964,8 +8094,8 @@ return Boolean(cssText.match(this.rx.EXTEND));
 transform: function (style) {
 var rules = styleUtil.rulesForStyle(style);
 var self = this;
-styleUtil.forEachStyleRule(rules, function (rule) {
-var map = self._mapRule(rule);
+styleUtil.forEachRule(rules, function (rule) {
+self._mapRuleOntoParent(rule);
 if (rule.parent) {
 var m;
 while (m = self.rx.EXTEND.exec(rule.cssText)) {
@@ -7984,7 +8114,7 @@ rule.cssText = '';
 }
 }, true);
 },
-_mapRule: function (rule) {
+_mapRuleOntoParent: function (rule) {
 if (rule.parent) {
 var map = rule.parent.map || (rule.parent.map = {});
 var parts = rule.selector.split(',');
@@ -8046,7 +8176,9 @@ this._encapsulateStyle = !nativeShadow && Boolean(this._template);
 if (this._template) {
 this._styles = this._collectStyles();
 var cssText = styleTransformer.elementStyles(this);
-if (cssText) {
+var needsStatic = this._needsStaticStyles(this._styles);
+if (needsStatic || !nativeShadow) {
+cssText = needsStatic ? cssText : ' ';
 var style = styleUtil.applyCss(cssText, this.is, nativeShadow ? this._template.content : null);
 if (!nativeShadow) {
 this._scopeStyle = style;
@@ -8137,11 +8269,14 @@ var styleUtil = Polymer.StyleUtil;
 var styleTransformer = Polymer.StyleTransformer;
 return {
 decorateStyles: function (styles) {
-var self = this, props = {};
+var self = this, props = {}, keyframes = [];
 styleUtil.forRulesInStyles(styles, function (rule) {
 self.decorateRule(rule);
 self.collectPropertiesInCssText(rule.propertyInfo.cssText, props);
+}, function onKeyframesRule(rule) {
+keyframes.push(rule);
 });
+styles._keyframes = keyframes;
 var names = [];
 for (var i in props) {
 names.push(i);
@@ -8181,17 +8316,9 @@ return any;
 }
 },
 collectCssText: function (rule) {
-var customCssText = '';
 var cssText = rule.parsedCssText;
 cssText = cssText.replace(this.rx.BRACKETED, '').replace(this.rx.VAR_ASSIGN, '');
-var parts = cssText.split(';');
-for (var i = 0, p; i < parts.length; i++) {
-p = parts[i];
-if (p.match(this.rx.MIXIN_MATCH) || p.match(this.rx.VAR_MATCH)) {
-customCssText += p + ';\n';
-}
-}
-return customCssText;
+return cssText;
 },
 collectPropertiesInCssText: function (cssText, props) {
 var m;
@@ -8233,12 +8360,13 @@ m = p.match(this.rx.MIXIN_MATCH);
 if (m) {
 p = this.valueForProperty(props[m[1]], props);
 } else {
-var pp = p.split(':');
-if (pp[1]) {
-pp[1] = pp[1].trim();
-pp[1] = this.valueForProperty(pp[1], props) || pp[1];
+var colon = p.indexOf(':');
+if (colon !== -1) {
+var pp = p.substring(colon);
+pp = pp.trim();
+pp = this.valueForProperty(pp, props) || pp;
+p = p.substring(0, colon) + pp;
 }
-p = pp.join(':');
 }
 parts[i] = p && p.lastIndexOf(';') === p.length - 1 ? p.slice(0, -1) : p || '';
 }
@@ -8252,6 +8380,34 @@ this.decorateRule(rule);
 }
 if (rule.propertyInfo.cssText) {
 output = this.valueForProperties(rule.propertyInfo.cssText, props);
+}
+rule.cssText = output;
+},
+applyKeyframeTransforms: function (rule, keyframeTransforms) {
+var input = rule.cssText;
+var output = rule.cssText;
+if (rule.hasAnimations == null) {
+rule.hasAnimations = this.rx.ANIMATION_MATCH.test(input);
+}
+if (rule.hasAnimations) {
+var transform;
+if (rule.keyframeNamesToTransform == null) {
+rule.keyframeNamesToTransform = [];
+for (var keyframe in keyframeTransforms) {
+transform = keyframeTransforms[keyframe];
+output = transform(input);
+if (input !== output) {
+input = output;
+rule.keyframeNamesToTransform.push(keyframe);
+}
+}
+} else {
+for (var i = 0; i < rule.keyframeNamesToTransform.length; ++i) {
+transform = keyframeTransforms[rule.keyframeNamesToTransform[i]];
+input = transform(input);
+}
+output = input;
+}
 }
 rule.cssText = output;
 },
@@ -8305,12 +8461,36 @@ var self = this;
 var hostSelector = styleTransformer._calcHostScope(element.is, element.extends);
 var rxHostSelector = element.extends ? '\\' + hostSelector.slice(0, -1) + '\\]' : hostSelector;
 var hostRx = new RegExp(this.rx.HOST_PREFIX + rxHostSelector + this.rx.HOST_SUFFIX);
+var keyframeTransforms = this._elementKeyframeTransforms(element, scopeSelector);
 return styleTransformer.elementStyles(element, function (rule) {
 self.applyProperties(rule, properties);
-if (rule.cssText && !nativeShadow) {
+if (!nativeShadow && !Polymer.StyleUtil.isKeyframesSelector(rule) && rule.cssText) {
+self.applyKeyframeTransforms(rule, keyframeTransforms);
 self._scopeSelector(rule, hostRx, hostSelector, element._scopeCssViaAttr, scopeSelector);
 }
 });
+},
+_elementKeyframeTransforms: function (element, scopeSelector) {
+var keyframesRules = element._styles._keyframes;
+var keyframeTransforms = {};
+if (!nativeShadow) {
+for (var i = 0, keyframesRule = keyframesRules[i]; i < keyframesRules.length; keyframesRule = keyframesRules[++i]) {
+this._scopeKeyframes(keyframesRule, scopeSelector);
+keyframeTransforms[keyframesRule.keyframesName] = this._keyframesRuleTransformer(keyframesRule);
+}
+}
+return keyframeTransforms;
+},
+_keyframesRuleTransformer: function (keyframesRule) {
+return function (cssText) {
+return cssText.replace(keyframesRule.keyframesNameRx, keyframesRule.transformedKeyframesName);
+};
+},
+_scopeKeyframes: function (rule, scopeId) {
+rule.keyframesNameRx = new RegExp(rule.keyframesName, 'g');
+rule.transformedKeyframesName = rule.keyframesName + '-' + scopeId;
+rule.transformedSelector = rule.transformedSelector || rule.selector;
+rule.selector = rule.transformedSelector.replace(rule.keyframesName, rule.transformedKeyframesName);
 },
 _scopeSelector: function (rule, hostRx, hostSelector, viaAttr, scopeId) {
 rule.transformedSelector = rule.transformedSelector || rule.selector;
@@ -8318,7 +8498,7 @@ var selector = rule.transformedSelector;
 var scope = viaAttr ? '[' + styleTransformer.SCOPE_NAME + '~=' + scopeId + ']' : '.' + scopeId;
 var parts = selector.split(',');
 for (var i = 0, l = parts.length, p; i < l && (p = parts[i]); i++) {
-parts[i] = p.match(hostRx) ? p.replace(hostSelector, hostSelector + scope) : scope + ' ' + p;
+parts[i] = p.match(hostRx) ? p.replace(hostSelector, scope) : scope + ' ' + p;
 }
 rule.selector = parts.join(',');
 },
@@ -8371,8 +8551,9 @@ props[i] = v;
 rx: {
 VAR_ASSIGN: /(?:^|[;\s{]\s*)(--[\w-]*?)\s*:\s*(?:([^;{]*)|{([^}]*)})(?:(?=[;\s}])|$)/gi,
 MIXIN_MATCH: /(?:^|\W+)@apply[\s]*\(([^)]*)\)/i,
-VAR_MATCH: /(^|\W+)var\([\s]*([^,)]*)[\s]*,?[\s]*((?:[^,)]*)|(?:[^;]*\([^;)]*\)))[\s]*?\)/gi,
+VAR_MATCH: /(^|\W+)var\([\s]*([^,)]*)[\s]*,?[\s]*((?:[^,()]*)|(?:[^;()]*\([^;)]*\)))[\s]*?\)/gi,
 VAR_CAPTURE: /\([\s]*(--[^,\s)]*)(?:,[\s]*(--[^,\s)]*))?(?:\)|,)/gi,
+ANIMATION_MATCH: /(animation\s*:)|(animation-name\s*:)/,
 IS_VAR: /^--/,
 BRACKETED: /\{[^}]*\}/g,
 HOST_PREFIX: '(?:^|[^.#[:])',
@@ -8437,7 +8618,6 @@ return this._objectsEqual(target, source) && this._objectsEqual(source, target);
 }());
 Polymer.StyleDefaults = function () {
 var styleProperties = Polymer.StyleProperties;
-var styleUtil = Polymer.StyleUtil;
 var StyleCache = Polymer.StyleCache;
 var api = {
 _styles: [],
@@ -8482,11 +8662,22 @@ return api;
 'use strict';
 var serializeValueToAttribute = Polymer.Base.serializeValueToAttribute;
 var propertyUtils = Polymer.StyleProperties;
-var styleTransformer = Polymer.StyleTransformer;
 var styleUtil = Polymer.StyleUtil;
+var styleTransformer = Polymer.StyleTransformer;
 var styleDefaults = Polymer.StyleDefaults;
 var nativeShadow = Polymer.Settings.useNativeShadow;
 Polymer.Base._addFeature({
+_needsStaticStyles: function (styles) {
+var needsStatic;
+for (var i = 0, l = styles.length, css; i < l; i++) {
+css = styleUtil.parser._clean(styles[i].textContent);
+needsStatic = needsStatic || Boolean(css);
+if (css.match(propertyUtils.rx.MIXIN_MATCH) || css.match(propertyUtils.rx.VAR_MATCH)) {
+return false;
+}
+}
+return needsStatic;
+},
 _prepStyleProperties: function () {
 this._ownStylePropertyNames = this._styles ? propertyUtils.decorateStyles(this._styles) : null;
 },
@@ -8600,7 +8791,7 @@ serializeValueToAttribute.call(this, value, attribute, node);
 },
 _scopeElementClass: function (element, selector) {
 if (!nativeShadow && !this._scopeCssViaAttr) {
-selector += (selector ? ' ' : '') + SCOPE_NAME + ' ' + this.is + (element._scopeSelector ? ' ' + XSCOPE_NAME + ' ' + element._scopeSelector : '');
+selector = (selector ? selector + ' ' : '') + SCOPE_NAME + ' ' + this.is + (element._scopeSelector ? ' ' + XSCOPE_NAME + ' ' + element._scopeSelector : '');
 }
 return selector;
 },
@@ -8687,7 +8878,6 @@ this._listenListeners(b.listeners);
 }
 });
 (function () {
-var nativeShadow = Polymer.Settings.useNativeShadow;
 var propertyUtils = Polymer.StyleProperties;
 var styleUtil = Polymer.StyleUtil;
 var cssParse = Polymer.CssParse;
@@ -8729,7 +8919,7 @@ if (this.include) {
 e.textContent = styleUtil.cssFromModules(this.include, true) + e.textContent;
 }
 if (e.textContent) {
-styleUtil.forEachStyleRule(styleUtil.rulesForStyle(e), function (rule) {
+styleUtil.forEachRule(styleUtil.rulesForStyle(e), function (rule) {
 styleTransformer.documentRule(rule);
 });
 var self = this;
@@ -8834,7 +9024,7 @@ this.__setPropertyOrig(property, value, fromAbove, node);
 _debounceTemplate: function (fn) {
 Polymer.dom.addDebouncer(this.debounce('_debounceTemplate', fn));
 },
-_flushTemplates: function (debouncerExpired) {
+_flushTemplates: function () {
 Polymer.dom.flush();
 },
 _customPrepEffects: function (archetype) {
@@ -8842,7 +9032,7 @@ var parentProps = archetype._parentProps;
 for (var prop in parentProps) {
 archetype._addPropertyEffect(prop, 'function', this._createHostPropEffector(prop));
 }
-for (var prop in this._instanceProps) {
+for (prop in this._instanceProps) {
 archetype._addPropertyEffect(prop, 'function', this._createInstancePropEffector(prop));
 }
 },
@@ -8927,6 +9117,9 @@ this.dataHost._forwardInstanceProp(this, prop, value);
 },
 _extendTemplate: function (template, proto) {
 var n$ = Object.getOwnPropertyNames(proto);
+if (proto._propertySetter) {
+template._propertySetter = proto._propertySetter;
+}
 for (var i = 0, n; i < n$.length && (n = n$[i]); i++) {
 var val = template[n];
 var pd = Object.getOwnPropertyDescriptor(proto, n);
@@ -9007,7 +9200,9 @@ model = model || {};
 if (this._parentProps) {
 var templatized = this._templatized;
 for (var prop in this._parentProps) {
+if (model[prop] === undefined) {
 model[prop] = templatized[this._parentPropPrefix + prop];
+}
 }
 }
 return new this.ctor(model, this);
@@ -9140,7 +9335,7 @@ for (var j = 0; j < s.removed.length; j++) {
 key = this.getKey(s.removed[j]);
 keyMap[key] = keyMap[key] ? null : -1;
 }
-for (var j = 0; j < s.addedCount; j++) {
+for (j = 0; j < s.addedCount; j++) {
 var item = this.userArray[s.index + j];
 key = this.getKey(item);
 key = key === undefined ? this.add(item) : key;
@@ -9150,7 +9345,7 @@ s.addedKeys.push(key);
 }
 var removed = [];
 var added = [];
-for (var key in keyMap) {
+for (key in keyMap) {
 if (keyMap[key] < 0) {
 this.removeKey(key);
 removed.push(key);
@@ -9347,7 +9542,6 @@ this._debounceTemplate(this._render);
 this._flushTemplates();
 },
 _render: function () {
-var c = this.collection;
 if (this._needFullRefresh) {
 this._applyFullRefresh();
 this._needFullRefresh = false;
@@ -9408,7 +9602,7 @@ keys.sort(function (a, b) {
 return self._sortFn(c.getItem(a), c.getItem(b));
 });
 }
-for (var i = 0; i < keys.length; i++) {
+for (i = 0; i < keys.length; i++) {
 var key = keys[i];
 var inst = this._instances[i];
 if (inst) {
@@ -9431,21 +9625,21 @@ return a - b;
 },
 _applySplicesUserSort: function (splices) {
 var c = this.collection;
-var instances = this._instances;
 var keyMap = {};
+var key;
 for (var i = 0, s; i < splices.length && (s = splices[i]); i++) {
 for (var j = 0; j < s.removed.length; j++) {
-var key = s.removed[j];
+key = s.removed[j];
 keyMap[key] = keyMap[key] ? null : -1;
 }
-for (var j = 0; j < s.added.length; j++) {
-var key = s.added[j];
+for (j = 0; j < s.added.length; j++) {
+key = s.added[j];
 keyMap[key] = keyMap[key] ? null : 1;
 }
 }
 var removedIdxs = [];
 var addedKeys = [];
-for (var key in keyMap) {
+for (key in keyMap) {
 if (keyMap[key] === -1) {
 removedIdxs.push(this._keyToInstIdx[key]);
 }
@@ -9455,7 +9649,7 @@ addedKeys.push(key);
 }
 if (removedIdxs.length) {
 removedIdxs.sort(this._numericSort);
-for (var i = removedIdxs.length - 1; i >= 0; i--) {
+for (i = removedIdxs.length - 1; i >= 0; i--) {
 var idx = removedIdxs[i];
 if (idx !== undefined) {
 this._detachAndRemoveInstance(idx);
@@ -9473,7 +9667,7 @@ addedKeys.sort(function (a, b) {
 return self._sortFn(c.getItem(a), c.getItem(b));
 });
 var start = 0;
-for (var i = 0; i < addedKeys.length; i++) {
+for (i = 0; i < addedKeys.length; i++) {
 start = this._insertRowUserSort(start, addedKeys[i]);
 }
 }
@@ -9503,12 +9697,11 @@ this._insertPlaceholder(idx, key);
 return idx;
 },
 _applySplicesArrayOrder: function (splices) {
-var c = this.collection;
 for (var i = 0, s; i < splices.length && (s = splices[i]); i++) {
 for (var j = 0; j < s.removed.length; j++) {
 this._detachAndRemoveInstance(s.index);
 }
-for (var j = 0; j < s.addedKeys.length; j++) {
+for (j = 0; j < s.addedKeys.length; j++) {
 this._insertPlaceholder(s.index + j, s.addedKeys[j]);
 }
 }
@@ -11479,11 +11672,33 @@ element.
   });
 </script>
 <!--
-The `<iron-flex-layout>` component provides simple ways to use [CSS flexible box layout](https://developer.mozilla.org/en-US/docs/Web/Guide/CSS/Flexible_boxes), also known as flexbox. This component provides two different ways to use flexbox:
+The `<iron-flex-layout>` component provides simple ways to use
+[CSS flexible box layout](https://developer.mozilla.org/en-US/docs/Web/Guide/CSS/Flexible_boxes),
+also known as flexbox. This component provides two different ways to use flexbox:
 
-1. [Layout classes](https://github.com/PolymerElements/iron-flex-layout/tree/master/classes). The layout class stylesheet provides a simple set of class-based flexbox rules. Layout classes let you specify layout properties directly in markup.
+1. [Layout classes](https://github.com/PolymerElements/iron-flex-layout/tree/master/iron-flex-layout-classes.html).
+The layout class stylesheet provides a simple set of class-based flexbox rules, that
+let you specify layout properties directly in markup. You must include this file
+in every element that needs to use them.
 
-2. [Custom CSS mixins](https://github.com/PolymerElements/iron-flex-layout/blob/master/iron-flex-layout.html). The mixin stylesheet includes custom CSS mixins that can be applied inside a CSS rule using the `@apply` function.
+Sample use:
+
+    <link rel="import" href="../iron-flex-layout/iron-flex-layout-classes.html">
+    <style is="custom-style" include="iron-flex iron-flex-alignment">
+
+    <div class="layout horizontal layout-start">
+      <div>cross axis start alignment</div>
+    </div>
+
+2. [Custom CSS mixins](https://github.com/PolymerElements/iron-flex-layout/blob/master/iron-flex-layout.html).
+The mixin stylesheet includes custom CSS mixins that can be applied inside a CSS rule using the `@apply` function.
+
+Please note that the old [/deep/ layout classes](https://github.com/PolymerElements/iron-flex-layout/tree/master/classes)
+are deprecated, and should not be used. To continue using layout properties
+directly in markup, please switch to using the new `dom-module`-based
+[layout classes](https://github.com/PolymerElements/iron-flex-layout/tree/master/iron-flex-layout-classes.html).
+Please note that the new version does not use `/deep/`, and therefore requires you
+to import the `dom-modules` in every element that needs to use them.
 
 A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `<iron-flex-layout>` is available.
 
@@ -12290,6 +12505,327 @@ Custom property | Description | Default
 @homepage polymer.github.io
 -->
 
+<style is="custom-style">
+
+  :root {
+
+    /* Material Design color palette for Google products */
+
+    --google-red-100: #f4c7c3;
+    --google-red-300: #e67c73;
+    --google-red-500: #db4437;
+    --google-red-700: #c53929;
+
+    --google-blue-100: #c6dafc;
+    --google-blue-300: #7baaf7;
+    --google-blue-500: #4285f4;
+    --google-blue-700: #3367d6;
+
+    --google-green-100: #b7e1cd;
+    --google-green-300: #57bb8a;
+    --google-green-500: #0f9d58;
+    --google-green-700: #0b8043;
+
+    --google-yellow-100: #fce8b2;
+    --google-yellow-300: #f7cb4d;
+    --google-yellow-500: #f4b400;
+    --google-yellow-700: #f09300;
+
+    --google-grey-100: #f5f5f5;
+    --google-grey-300: #e0e0e0;
+    --google-grey-500: #9e9e9e;
+    --google-grey-700: #616161;
+    
+    /* Material Design color palette from online spec document */
+
+    --paper-red-50: #ffebee;
+    --paper-red-100: #ffcdd2;
+    --paper-red-200: #ef9a9a;
+    --paper-red-300: #e57373;
+    --paper-red-400: #ef5350;
+    --paper-red-500: #f44336;
+    --paper-red-600: #e53935;
+    --paper-red-700: #d32f2f;
+    --paper-red-800: #c62828;
+    --paper-red-900: #b71c1c;
+    --paper-red-a100: #ff8a80;
+    --paper-red-a200: #ff5252;
+    --paper-red-a400: #ff1744;
+    --paper-red-a700: #d50000;
+ 
+    --paper-pink-50: #fce4ec;
+    --paper-pink-100: #f8bbd0;
+    --paper-pink-200: #f48fb1;
+    --paper-pink-300: #f06292;
+    --paper-pink-400: #ec407a;
+    --paper-pink-500: #e91e63;
+    --paper-pink-600: #d81b60;
+    --paper-pink-700: #c2185b;
+    --paper-pink-800: #ad1457;
+    --paper-pink-900: #880e4f;
+    --paper-pink-a100: #ff80ab;
+    --paper-pink-a200: #ff4081;
+    --paper-pink-a400: #f50057;
+    --paper-pink-a700: #c51162;
+ 
+    --paper-purple-50: #f3e5f5;
+    --paper-purple-100: #e1bee7;
+    --paper-purple-200: #ce93d8;
+    --paper-purple-300: #ba68c8;
+    --paper-purple-400: #ab47bc;
+    --paper-purple-500: #9c27b0;
+    --paper-purple-600: #8e24aa;
+    --paper-purple-700: #7b1fa2;
+    --paper-purple-800: #6a1b9a;
+    --paper-purple-900: #4a148c;
+    --paper-purple-a100: #ea80fc;
+    --paper-purple-a200: #e040fb;
+    --paper-purple-a400: #d500f9;
+    --paper-purple-a700: #aa00ff;
+ 
+    --paper-deep-purple-50: #ede7f6;
+    --paper-deep-purple-100: #d1c4e9;
+    --paper-deep-purple-200: #b39ddb;
+    --paper-deep-purple-300: #9575cd;
+    --paper-deep-purple-400: #7e57c2;
+    --paper-deep-purple-500: #673ab7;
+    --paper-deep-purple-600: #5e35b1;
+    --paper-deep-purple-700: #512da8;
+    --paper-deep-purple-800: #4527a0;
+    --paper-deep-purple-900: #311b92;
+    --paper-deep-purple-a100: #b388ff;
+    --paper-deep-purple-a200: #7c4dff;
+    --paper-deep-purple-a400: #651fff;
+    --paper-deep-purple-a700: #6200ea;
+ 
+    --paper-indigo-50: #e8eaf6;
+    --paper-indigo-100: #c5cae9;
+    --paper-indigo-200: #9fa8da;
+    --paper-indigo-300: #7986cb;
+    --paper-indigo-400: #5c6bc0;
+    --paper-indigo-500: #3f51b5;
+    --paper-indigo-600: #3949ab;
+    --paper-indigo-700: #303f9f;
+    --paper-indigo-800: #283593;
+    --paper-indigo-900: #1a237e;
+    --paper-indigo-a100: #8c9eff;
+    --paper-indigo-a200: #536dfe;
+    --paper-indigo-a400: #3d5afe;
+    --paper-indigo-a700: #304ffe;
+ 
+    --paper-blue-50: #e3f2fd;
+    --paper-blue-100: #bbdefb;
+    --paper-blue-200: #90caf9;
+    --paper-blue-300: #64b5f6;
+    --paper-blue-400: #42a5f5;
+    --paper-blue-500: #2196f3;
+    --paper-blue-600: #1e88e5;
+    --paper-blue-700: #1976d2;
+    --paper-blue-800: #1565c0;
+    --paper-blue-900: #0d47a1;
+    --paper-blue-a100: #82b1ff;
+    --paper-blue-a200: #448aff;
+    --paper-blue-a400: #2979ff;
+    --paper-blue-a700: #2962ff;
+ 
+    --paper-light-blue-50: #e1f5fe;
+    --paper-light-blue-100: #b3e5fc;
+    --paper-light-blue-200: #81d4fa;
+    --paper-light-blue-300: #4fc3f7;
+    --paper-light-blue-400: #29b6f6;
+    --paper-light-blue-500: #03a9f4;
+    --paper-light-blue-600: #039be5;
+    --paper-light-blue-700: #0288d1;
+    --paper-light-blue-800: #0277bd;
+    --paper-light-blue-900: #01579b;
+    --paper-light-blue-a100: #80d8ff;
+    --paper-light-blue-a200: #40c4ff;
+    --paper-light-blue-a400: #00b0ff;
+    --paper-light-blue-a700: #0091ea;
+ 
+    --paper-cyan-50: #e0f7fa;
+    --paper-cyan-100: #b2ebf2;
+    --paper-cyan-200: #80deea;
+    --paper-cyan-300: #4dd0e1;
+    --paper-cyan-400: #26c6da;
+    --paper-cyan-500: #00bcd4;
+    --paper-cyan-600: #00acc1;
+    --paper-cyan-700: #0097a7;
+    --paper-cyan-800: #00838f;
+    --paper-cyan-900: #006064;
+    --paper-cyan-a100: #84ffff;
+    --paper-cyan-a200: #18ffff;
+    --paper-cyan-a400: #00e5ff;
+    --paper-cyan-a700: #00b8d4;
+ 
+    --paper-teal-50: #e0f2f1;
+    --paper-teal-100: #b2dfdb;
+    --paper-teal-200: #80cbc4;
+    --paper-teal-300: #4db6ac;
+    --paper-teal-400: #26a69a;
+    --paper-teal-500: #009688;
+    --paper-teal-600: #00897b;
+    --paper-teal-700: #00796b;
+    --paper-teal-800: #00695c;
+    --paper-teal-900: #004d40;
+    --paper-teal-a100: #a7ffeb;
+    --paper-teal-a200: #64ffda;
+    --paper-teal-a400: #1de9b6;
+    --paper-teal-a700: #00bfa5;
+ 
+    --paper-green-50: #e8f5e9;
+    --paper-green-100: #c8e6c9;
+    --paper-green-200: #a5d6a7;
+    --paper-green-300: #81c784;
+    --paper-green-400: #66bb6a;
+    --paper-green-500: #4caf50;
+    --paper-green-600: #43a047;
+    --paper-green-700: #388e3c;
+    --paper-green-800: #2e7d32;
+    --paper-green-900: #1b5e20;
+    --paper-green-a100: #b9f6ca;
+    --paper-green-a200: #69f0ae;
+    --paper-green-a400: #00e676;
+    --paper-green-a700: #00c853;
+ 
+    --paper-light-green-50: #f1f8e9;
+    --paper-light-green-100: #dcedc8;
+    --paper-light-green-200: #c5e1a5;
+    --paper-light-green-300: #aed581;
+    --paper-light-green-400: #9ccc65;
+    --paper-light-green-500: #8bc34a;
+    --paper-light-green-600: #7cb342;
+    --paper-light-green-700: #689f38;
+    --paper-light-green-800: #558b2f;
+    --paper-light-green-900: #33691e;
+    --paper-light-green-a100: #ccff90;
+    --paper-light-green-a200: #b2ff59;
+    --paper-light-green-a400: #76ff03;
+    --paper-light-green-a700: #64dd17;
+ 
+    --paper-lime-50: #f9fbe7;
+    --paper-lime-100: #f0f4c3;
+    --paper-lime-200: #e6ee9c;
+    --paper-lime-300: #dce775;
+    --paper-lime-400: #d4e157;
+    --paper-lime-500: #cddc39;
+    --paper-lime-600: #c0ca33;
+    --paper-lime-700: #afb42b;
+    --paper-lime-800: #9e9d24;
+    --paper-lime-900: #827717;
+    --paper-lime-a100: #f4ff81;
+    --paper-lime-a200: #eeff41;
+    --paper-lime-a400: #c6ff00;
+    --paper-lime-a700: #aeea00;
+ 
+    --paper-yellow-50: #fffde7;
+    --paper-yellow-100: #fff9c4;
+    --paper-yellow-200: #fff59d;
+    --paper-yellow-300: #fff176;
+    --paper-yellow-400: #ffee58;
+    --paper-yellow-500: #ffeb3b;
+    --paper-yellow-600: #fdd835;
+    --paper-yellow-700: #fbc02d;
+    --paper-yellow-800: #f9a825;
+    --paper-yellow-900: #f57f17;
+    --paper-yellow-a100: #ffff8d;
+    --paper-yellow-a200: #ffff00;
+    --paper-yellow-a400: #ffea00;
+    --paper-yellow-a700: #ffd600;
+ 
+    --paper-amber-50: #fff8e1;
+    --paper-amber-100: #ffecb3;
+    --paper-amber-200: #ffe082;
+    --paper-amber-300: #ffd54f;
+    --paper-amber-400: #ffca28;
+    --paper-amber-500: #ffc107;
+    --paper-amber-600: #ffb300;
+    --paper-amber-700: #ffa000;
+    --paper-amber-800: #ff8f00;
+    --paper-amber-900: #ff6f00;
+    --paper-amber-a100: #ffe57f;
+    --paper-amber-a200: #ffd740;
+    --paper-amber-a400: #ffc400;
+    --paper-amber-a700: #ffab00;
+ 
+    --paper-orange-50: #fff3e0;
+    --paper-orange-100: #ffe0b2;
+    --paper-orange-200: #ffcc80;
+    --paper-orange-300: #ffb74d;
+    --paper-orange-400: #ffa726;
+    --paper-orange-500: #ff9800;
+    --paper-orange-600: #fb8c00;
+    --paper-orange-700: #f57c00;
+    --paper-orange-800: #ef6c00;
+    --paper-orange-900: #e65100;
+    --paper-orange-a100: #ffd180;
+    --paper-orange-a200: #ffab40;
+    --paper-orange-a400: #ff9100;
+    --paper-orange-a700: #ff6500;
+ 
+    --paper-deep-orange-50: #fbe9e7;
+    --paper-deep-orange-100: #ffccbc;
+    --paper-deep-orange-200: #ffab91;
+    --paper-deep-orange-300: #ff8a65;
+    --paper-deep-orange-400: #ff7043;
+    --paper-deep-orange-500: #ff5722;
+    --paper-deep-orange-600: #f4511e;
+    --paper-deep-orange-700: #e64a19;
+    --paper-deep-orange-800: #d84315;
+    --paper-deep-orange-900: #bf360c;
+    --paper-deep-orange-a100: #ff9e80;
+    --paper-deep-orange-a200: #ff6e40;
+    --paper-deep-orange-a400: #ff3d00;
+    --paper-deep-orange-a700: #dd2c00;
+ 
+    --paper-brown-50: #efebe9;
+    --paper-brown-100: #d7ccc8;
+    --paper-brown-200: #bcaaa4;
+    --paper-brown-300: #a1887f;
+    --paper-brown-400: #8d6e63;
+    --paper-brown-500: #795548;
+    --paper-brown-600: #6d4c41;
+    --paper-brown-700: #5d4037;
+    --paper-brown-800: #4e342e;
+    --paper-brown-900: #3e2723;
+ 
+    --paper-grey-50: #fafafa;
+    --paper-grey-100: #f5f5f5;
+    --paper-grey-200: #eeeeee;
+    --paper-grey-300: #e0e0e0;
+    --paper-grey-400: #bdbdbd;
+    --paper-grey-500: #9e9e9e;
+    --paper-grey-600: #757575;
+    --paper-grey-700: #616161;
+    --paper-grey-800: #424242;
+    --paper-grey-900: #212121;
+ 
+    --paper-blue-grey-50: #eceff1;
+    --paper-blue-grey-100: #cfd8dc;
+    --paper-blue-grey-200: #b0bec5;
+    --paper-blue-grey-300: #90a4ae;
+    --paper-blue-grey-400: #78909c;
+    --paper-blue-grey-500: #607d8b;
+    --paper-blue-grey-600: #546e7a;
+    --paper-blue-grey-700: #455a64;
+    --paper-blue-grey-800: #37474f;
+    --paper-blue-grey-900: #263238;
+
+    /* opacity for dark text on a light background */
+    --dark-divider-opacity: 0.12;
+    --dark-disabled-opacity: 0.38; /* or hint text or icon */
+    --dark-secondary-opacity: 0.54;
+    --dark-primary-opacity: 0.87;
+
+    /* opacity for light text on a dark background */
+    --light-divider-opacity: 0.12;
+    --light-disabled-opacity: 0.3; /* or hint text or icon */
+    --light-secondary-opacity: 0.7;
+    --light-primary-opacity: 1.0;
+
+  }
+
+</style>
 <!-- Taken from https://www.google.com/design/spec/style/color.html#color-ui-color-application -->
 
 <style is="custom-style">
@@ -12306,24 +12842,26 @@ Custom property | Description | Default
     --secondary-text-color: var(--light-theme-secondary-color);
     --disabled-text-color: var(--light-theme-disabled-color);
     --divider-color: var(--light-theme-divider-color);
+    --error-color: var(--paper-deep-orange-a700);
 
     /*
      * Primary and accent colors. Also see color.html for more colors.
      */
-    --primary-color: #3f51b5;  /* --paper-indigo-500 */
-    --light-primary-color: #c5cae9;  /* --paper-indigo-100 */
-    --dark-primary-color: #303f9f;  /* --paper-indigo-700 */
+    --primary-color: var(--paper-indigo-500);
+    --light-primary-color: var(--paper-indigo-100);
+    --dark-primary-color: var(--paper-indigo-700);
 
-    --accent-color: #ff4081;  /* --paper-pink-a200 */
-    --light-accent-color: #ff80ab;  /* --paper-pink-a100 */
-    --dark-accent-color: #f50057;  /* --paper-pink-a400 */
+    --accent-color: var(--paper-pink-a200);
+    --light-accent-color: var(--paper-pink-a100);
+    --dark-accent-color: var(--paper-pink-a400);
+
 
     /*
      * Material Design Light background theme
      */
     --light-theme-background-color: #ffffff;
     --light-theme-base-color: #000000;
-    --light-theme-text-color: #212121;
+    --light-theme-text-color: var(--paper-grey-900);
     --light-theme-secondary-color: #737373;  /* for secondary text and icons */
     --light-theme-disabled-color: #9b9b9b;  /* disabled/hint text */
     --light-theme-divider-color: #dbdbdb;
@@ -12331,7 +12869,7 @@ Custom property | Description | Default
     /*
      * Material Design Dark background theme
      */
-    --dark-theme-background-color: #212121;
+    --dark-theme-background-color: var(--paper-grey-900);
     --dark-theme-base-color: #ffffff;
     --dark-theme-text-color: #ffffff;
     --dark-theme-secondary-color: #bcbcbc;  /* for secondary text and icons */
@@ -12860,6 +13398,7 @@ Custom property | Description | Default
         this._oldTabIndex = this.tabIndex;
         this.focused = false;
         this.tabIndex = -1;
+        this.blur();
       } else if (this._oldTabIndex !== undefined) {
         this.tabIndex = this._oldTabIndex;
       }
@@ -14287,6 +14826,7 @@ Custom property | Description | Default
     _onUpKey: function(event) {
       // up and down arrows moves the focus
       this._focusPrevious();
+      event.detail.keyboardEvent.preventDefault();
     },
 
     /**
@@ -14296,6 +14836,7 @@ Custom property | Description | Default
      */
     _onDownKey: function(event) {
       this._focusNext();
+      event.detail.keyboardEvent.preventDefault();
     },
 
     /**
@@ -14370,20 +14911,22 @@ Custom property | Description | Default
       return window.getComputedStyle(this)['direction'] === 'rtl';
     },
 
-    _onLeftKey: function() {
+    _onLeftKey: function(event) {
       if (this._isRTL) {
         this._focusNext();
       } else {
         this._focusPrevious();
       }
+      event.detail.keyboardEvent.preventDefault();
     },
 
-    _onRightKey: function() {
+    _onRightKey: function(event) {
       if (this._isRTL) {
         this._focusPrevious();
       } else {
         this._focusNext();
       }
+      event.detail.keyboardEvent.preventDefault();
     },
 
     _onKeydown: function(event) {
@@ -14587,327 +15130,6 @@ Custom property | Description | Default
   };
 </script>
 
-<style is="custom-style">
-
-  :root {
-
-    /* Material Design color palette for Google products */
-
-    --google-red-100: #f4c7c3;
-    --google-red-300: #e67c73;
-    --google-red-500: #db4437;
-    --google-red-700: #c53929;
-
-    --google-blue-100: #c6dafc;
-    --google-blue-300: #7baaf7;
-    --google-blue-500: #4285f4;
-    --google-blue-700: #3367d6;
-
-    --google-green-100: #b7e1cd;
-    --google-green-300: #57bb8a;
-    --google-green-500: #0f9d58;
-    --google-green-700: #0b8043;
-
-    --google-yellow-100: #fce8b2;
-    --google-yellow-300: #f7cb4d;
-    --google-yellow-500: #f4b400;
-    --google-yellow-700: #f09300;
-
-    --google-grey-100: #f5f5f5;
-    --google-grey-300: #e0e0e0;
-    --google-grey-500: #9e9e9e;
-    --google-grey-700: #616161;
-    
-    /* Material Design color palette from online spec document */
-
-    --paper-red-50: #ffebee;
-    --paper-red-100: #ffcdd2;
-    --paper-red-200: #ef9a9a;
-    --paper-red-300: #e57373;
-    --paper-red-400: #ef5350;
-    --paper-red-500: #f44336;
-    --paper-red-600: #e53935;
-    --paper-red-700: #d32f2f;
-    --paper-red-800: #c62828;
-    --paper-red-900: #b71c1c;
-    --paper-red-a100: #ff8a80;
-    --paper-red-a200: #ff5252;
-    --paper-red-a400: #ff1744;
-    --paper-red-a700: #d50000;
- 
-    --paper-pink-50: #fce4ec;
-    --paper-pink-100: #f8bbd0;
-    --paper-pink-200: #f48fb1;
-    --paper-pink-300: #f06292;
-    --paper-pink-400: #ec407a;
-    --paper-pink-500: #e91e63;
-    --paper-pink-600: #d81b60;
-    --paper-pink-700: #c2185b;
-    --paper-pink-800: #ad1457;
-    --paper-pink-900: #880e4f;
-    --paper-pink-a100: #ff80ab;
-    --paper-pink-a200: #ff4081;
-    --paper-pink-a400: #f50057;
-    --paper-pink-a700: #c51162;
- 
-    --paper-purple-50: #f3e5f5;
-    --paper-purple-100: #e1bee7;
-    --paper-purple-200: #ce93d8;
-    --paper-purple-300: #ba68c8;
-    --paper-purple-400: #ab47bc;
-    --paper-purple-500: #9c27b0;
-    --paper-purple-600: #8e24aa;
-    --paper-purple-700: #7b1fa2;
-    --paper-purple-800: #6a1b9a;
-    --paper-purple-900: #4a148c;
-    --paper-purple-a100: #ea80fc;
-    --paper-purple-a200: #e040fb;
-    --paper-purple-a400: #d500f9;
-    --paper-purple-a700: #aa00ff;
- 
-    --paper-deep-purple-50: #ede7f6;
-    --paper-deep-purple-100: #d1c4e9;
-    --paper-deep-purple-200: #b39ddb;
-    --paper-deep-purple-300: #9575cd;
-    --paper-deep-purple-400: #7e57c2;
-    --paper-deep-purple-500: #673ab7;
-    --paper-deep-purple-600: #5e35b1;
-    --paper-deep-purple-700: #512da8;
-    --paper-deep-purple-800: #4527a0;
-    --paper-deep-purple-900: #311b92;
-    --paper-deep-purple-a100: #b388ff;
-    --paper-deep-purple-a200: #7c4dff;
-    --paper-deep-purple-a400: #651fff;
-    --paper-deep-purple-a700: #6200ea;
- 
-    --paper-indigo-50: #e8eaf6;
-    --paper-indigo-100: #c5cae9;
-    --paper-indigo-200: #9fa8da;
-    --paper-indigo-300: #7986cb;
-    --paper-indigo-400: #5c6bc0;
-    --paper-indigo-500: #3f51b5;
-    --paper-indigo-600: #3949ab;
-    --paper-indigo-700: #303f9f;
-    --paper-indigo-800: #283593;
-    --paper-indigo-900: #1a237e;
-    --paper-indigo-a100: #8c9eff;
-    --paper-indigo-a200: #536dfe;
-    --paper-indigo-a400: #3d5afe;
-    --paper-indigo-a700: #304ffe;
- 
-    --paper-blue-50: #e3f2fd;
-    --paper-blue-100: #bbdefb;
-    --paper-blue-200: #90caf9;
-    --paper-blue-300: #64b5f6;
-    --paper-blue-400: #42a5f5;
-    --paper-blue-500: #2196f3;
-    --paper-blue-600: #1e88e5;
-    --paper-blue-700: #1976d2;
-    --paper-blue-800: #1565c0;
-    --paper-blue-900: #0d47a1;
-    --paper-blue-a100: #82b1ff;
-    --paper-blue-a200: #448aff;
-    --paper-blue-a400: #2979ff;
-    --paper-blue-a700: #2962ff;
- 
-    --paper-light-blue-50: #e1f5fe;
-    --paper-light-blue-100: #b3e5fc;
-    --paper-light-blue-200: #81d4fa;
-    --paper-light-blue-300: #4fc3f7;
-    --paper-light-blue-400: #29b6f6;
-    --paper-light-blue-500: #03a9f4;
-    --paper-light-blue-600: #039be5;
-    --paper-light-blue-700: #0288d1;
-    --paper-light-blue-800: #0277bd;
-    --paper-light-blue-900: #01579b;
-    --paper-light-blue-a100: #80d8ff;
-    --paper-light-blue-a200: #40c4ff;
-    --paper-light-blue-a400: #00b0ff;
-    --paper-light-blue-a700: #0091ea;
- 
-    --paper-cyan-50: #e0f7fa;
-    --paper-cyan-100: #b2ebf2;
-    --paper-cyan-200: #80deea;
-    --paper-cyan-300: #4dd0e1;
-    --paper-cyan-400: #26c6da;
-    --paper-cyan-500: #00bcd4;
-    --paper-cyan-600: #00acc1;
-    --paper-cyan-700: #0097a7;
-    --paper-cyan-800: #00838f;
-    --paper-cyan-900: #006064;
-    --paper-cyan-a100: #84ffff;
-    --paper-cyan-a200: #18ffff;
-    --paper-cyan-a400: #00e5ff;
-    --paper-cyan-a700: #00b8d4;
- 
-    --paper-teal-50: #e0f2f1;
-    --paper-teal-100: #b2dfdb;
-    --paper-teal-200: #80cbc4;
-    --paper-teal-300: #4db6ac;
-    --paper-teal-400: #26a69a;
-    --paper-teal-500: #009688;
-    --paper-teal-600: #00897b;
-    --paper-teal-700: #00796b;
-    --paper-teal-800: #00695c;
-    --paper-teal-900: #004d40;
-    --paper-teal-a100: #a7ffeb;
-    --paper-teal-a200: #64ffda;
-    --paper-teal-a400: #1de9b6;
-    --paper-teal-a700: #00bfa5;
- 
-    --paper-green-50: #e8f5e9;
-    --paper-green-100: #c8e6c9;
-    --paper-green-200: #a5d6a7;
-    --paper-green-300: #81c784;
-    --paper-green-400: #66bb6a;
-    --paper-green-500: #4caf50;
-    --paper-green-600: #43a047;
-    --paper-green-700: #388e3c;
-    --paper-green-800: #2e7d32;
-    --paper-green-900: #1b5e20;
-    --paper-green-a100: #b9f6ca;
-    --paper-green-a200: #69f0ae;
-    --paper-green-a400: #00e676;
-    --paper-green-a700: #00c853;
- 
-    --paper-light-green-50: #f1f8e9;
-    --paper-light-green-100: #dcedc8;
-    --paper-light-green-200: #c5e1a5;
-    --paper-light-green-300: #aed581;
-    --paper-light-green-400: #9ccc65;
-    --paper-light-green-500: #8bc34a;
-    --paper-light-green-600: #7cb342;
-    --paper-light-green-700: #689f38;
-    --paper-light-green-800: #558b2f;
-    --paper-light-green-900: #33691e;
-    --paper-light-green-a100: #ccff90;
-    --paper-light-green-a200: #b2ff59;
-    --paper-light-green-a400: #76ff03;
-    --paper-light-green-a700: #64dd17;
- 
-    --paper-lime-50: #f9fbe7;
-    --paper-lime-100: #f0f4c3;
-    --paper-lime-200: #e6ee9c;
-    --paper-lime-300: #dce775;
-    --paper-lime-400: #d4e157;
-    --paper-lime-500: #cddc39;
-    --paper-lime-600: #c0ca33;
-    --paper-lime-700: #afb42b;
-    --paper-lime-800: #9e9d24;
-    --paper-lime-900: #827717;
-    --paper-lime-a100: #f4ff81;
-    --paper-lime-a200: #eeff41;
-    --paper-lime-a400: #c6ff00;
-    --paper-lime-a700: #aeea00;
- 
-    --paper-yellow-50: #fffde7;
-    --paper-yellow-100: #fff9c4;
-    --paper-yellow-200: #fff59d;
-    --paper-yellow-300: #fff176;
-    --paper-yellow-400: #ffee58;
-    --paper-yellow-500: #ffeb3b;
-    --paper-yellow-600: #fdd835;
-    --paper-yellow-700: #fbc02d;
-    --paper-yellow-800: #f9a825;
-    --paper-yellow-900: #f57f17;
-    --paper-yellow-a100: #ffff8d;
-    --paper-yellow-a200: #ffff00;
-    --paper-yellow-a400: #ffea00;
-    --paper-yellow-a700: #ffd600;
- 
-    --paper-amber-50: #fff8e1;
-    --paper-amber-100: #ffecb3;
-    --paper-amber-200: #ffe082;
-    --paper-amber-300: #ffd54f;
-    --paper-amber-400: #ffca28;
-    --paper-amber-500: #ffc107;
-    --paper-amber-600: #ffb300;
-    --paper-amber-700: #ffa000;
-    --paper-amber-800: #ff8f00;
-    --paper-amber-900: #ff6f00;
-    --paper-amber-a100: #ffe57f;
-    --paper-amber-a200: #ffd740;
-    --paper-amber-a400: #ffc400;
-    --paper-amber-a700: #ffab00;
- 
-    --paper-orange-50: #fff3e0;
-    --paper-orange-100: #ffe0b2;
-    --paper-orange-200: #ffcc80;
-    --paper-orange-300: #ffb74d;
-    --paper-orange-400: #ffa726;
-    --paper-orange-500: #ff9800;
-    --paper-orange-600: #fb8c00;
-    --paper-orange-700: #f57c00;
-    --paper-orange-800: #ef6c00;
-    --paper-orange-900: #e65100;
-    --paper-orange-a100: #ffd180;
-    --paper-orange-a200: #ffab40;
-    --paper-orange-a400: #ff9100;
-    --paper-orange-a700: #ff6500;
- 
-    --paper-deep-orange-50: #fbe9e7;
-    --paper-deep-orange-100: #ffccbc;
-    --paper-deep-orange-200: #ffab91;
-    --paper-deep-orange-300: #ff8a65;
-    --paper-deep-orange-400: #ff7043;
-    --paper-deep-orange-500: #ff5722;
-    --paper-deep-orange-600: #f4511e;
-    --paper-deep-orange-700: #e64a19;
-    --paper-deep-orange-800: #d84315;
-    --paper-deep-orange-900: #bf360c;
-    --paper-deep-orange-a100: #ff9e80;
-    --paper-deep-orange-a200: #ff6e40;
-    --paper-deep-orange-a400: #ff3d00;
-    --paper-deep-orange-a700: #dd2c00;
- 
-    --paper-brown-50: #efebe9;
-    --paper-brown-100: #d7ccc8;
-    --paper-brown-200: #bcaaa4;
-    --paper-brown-300: #a1887f;
-    --paper-brown-400: #8d6e63;
-    --paper-brown-500: #795548;
-    --paper-brown-600: #6d4c41;
-    --paper-brown-700: #5d4037;
-    --paper-brown-800: #4e342e;
-    --paper-brown-900: #3e2723;
- 
-    --paper-grey-50: #fafafa;
-    --paper-grey-100: #f5f5f5;
-    --paper-grey-200: #eeeeee;
-    --paper-grey-300: #e0e0e0;
-    --paper-grey-400: #bdbdbd;
-    --paper-grey-500: #9e9e9e;
-    --paper-grey-600: #757575;
-    --paper-grey-700: #616161;
-    --paper-grey-800: #424242;
-    --paper-grey-900: #212121;
- 
-    --paper-blue-grey-50: #eceff1;
-    --paper-blue-grey-100: #cfd8dc;
-    --paper-blue-grey-200: #b0bec5;
-    --paper-blue-grey-300: #90a4ae;
-    --paper-blue-grey-400: #78909c;
-    --paper-blue-grey-500: #607d8b;
-    --paper-blue-grey-600: #546e7a;
-    --paper-blue-grey-700: #455a64;
-    --paper-blue-grey-800: #37474f;
-    --paper-blue-grey-900: #263238;
-
-    /* opacity for dark text on a light background */
-    --dark-divider-opacity: 0.12;
-    --dark-disabled-opacity: 0.38; /* or hint text or icon */
-    --dark-secondary-opacity: 0.54;
-    --dark-primary-opacity: 0.87;
-
-    /* opacity for light text on a dark background */
-    --light-divider-opacity: 0.12;
-    --light-disabled-opacity: 0.3; /* or hint text or icon */
-    --light-secondary-opacity: 0.7;
-    --light-primary-opacity: 1.0;
-
-  }
-
-</style>
 <script>
   /**
    * The `iron-iconset-svg` element allows users to define their own icon sets
@@ -15185,6 +15407,7 @@ The following custom properties and mixins are available for styling:
 Custom property | Description | Default
 ----------------|-------------|----------
 `--paper-tabs-selection-bar-color` | Color for the selection bar | `--paper-yellow-a100`
+`--paper-tabs-selection-bar` | Mixin applied to the selection bar | {}
 `--paper-tabs` | Mixin applied to the tabs | `{}`
 
 @hero hero.svg
@@ -15502,16 +15725,16 @@ app-drawer is a navigation drawer that can slide in from the left or right.
 
 Example:
 
-Add a drawer on the left side of the screen (default):
+Align the drawer at the start, which is left in LTR layouts (default):
 
 ```html
 <app-drawer opened></app-drawer>
 ```
 
-Add a drawer on the right side of the screen:
+Align the drawer at the end:
 
 ```html
-<app-drawer position="right" opened></app-drawer>
+<app-drawer align="end" opened></app-drawer>
 ```
 
 To make the contents of the drawer scrollable, create a wrapper for the scroll
@@ -15527,6 +15750,7 @@ content, and apply height and overflow styles to it.
 
 Custom property                  | Description                            | Default
 ---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
 `--app-drawer-content-container` | Mixin for the drawer content container | {}
 `--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
 
@@ -15539,7 +15763,7 @@ the viewport width is smaller than `responsiveWidth`, this element changes to na
 In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
 in/out to hide/reveal the main content.
 
-By default the drawer is on the left side of the screen:
+By default the drawer is aligned to the start, which is left in LTR layouts:
 
 ```html
 <app-drawer-layout>
@@ -15552,11 +15776,11 @@ By default the drawer is on the left side of the screen:
 </app-drawer-layout>
 ```
 
-A drawer on the right side of the screen:
+Align the drawer at the end:
 
 ```html
 <app-drawer-layout>
-  <app-drawer position="right">
+  <app-drawer align="end">
     <!\-\- drawer content \-\->
   </app-drawer>
   <div>
@@ -17539,7 +17763,7 @@ Custom property | Description | Default
       }
 
       .tab-content > ::content > a {
-        @apply(--layout-flex-auto)
+        @apply(--layout-flex-auto);
 
         height: 100%;
       }
@@ -17691,8 +17915,8 @@ Custom property | Description | Default
 
     <div id="tabsContainer" on-track="_scroll" on-down="_down">
       <div id="tabsContent" class$="[[_computeTabsContentClass(scrollable)]]">
-        <content select="*"></content>
         <div id="selectionBar" class$="[[_computeSelectionBarClass(noBar, alignBottom)]]" on-transitionend="_onBarTransitionEnd"></div>
+        <content select="*"></content>
       </div>
     </div>
 
@@ -18388,12 +18612,38 @@ Custom property | Description | Default
 
   <style>
 
-    #contentContainer {
+    :host {
       position: fixed;
       top: -120px;
       bottom: -120px;
       left: 0;
-      width: 256px;
+      right: 0;
+      visibility: hidden;
+      transition: visibility 0.2s ease;
+    }
+
+    :host([opened]) {
+      visibility: visible;
+    }
+
+    :host([persistent]) {
+      width: var(--app-drawer-width, 256px);
+    }
+
+    :host([persistent][position=left]) {
+      right: auto;
+    }
+
+    :host([persistent][position=right]) {
+      left: auto;
+    }
+
+    #contentContainer {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: var(--app-drawer-width, 256px);
       background-color: #FFF;
       padding: 120px 0;
 
@@ -18407,7 +18657,7 @@ Custom property | Description | Default
       @apply(--app-drawer-content-container);
     }
 
-    :host([position=right]) > #contentContainer {
+    #contentContainer[position=right] {
       left: auto;
       right: 0;
 
@@ -18422,9 +18672,10 @@ Custom property | Description | Default
       left: 100%;
       width: 15px;
       content: '';
+      visibility: visible;
     }
 
-    :host([swipe-open][position=right]) > #contentContainer::after {
+    :host([swipe-open]) > #contentContainer[position=right]::after {
       left: auto;
       right: 100%;
     }
@@ -18435,40 +18686,28 @@ Custom property | Description | Default
     }
 
     #scrim {
-      position: fixed;
-      top: -120px;
+      position: absolute;
+      top: 0;
+      bottom: 0;
       left: 0;
       right: 0;
-      bottom: -120px;
       background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
       opacity: 0;
-      visibility: hidden;
-
-      transition: 0.2s ease;
-      transition-property: opacity, visibility;
+      transition: opacity 0.2s ease;
 
       -webkit-transform: translateZ(0);
       transform:  translateZ(0);
     }
 
-    /**
-     * NOTE(keanulee): IE/Edge does not properly update element styles when using
-     * dynamically inserted style tags that match with :not([attribute]) rules,
-     * so we can't do this instead:
-     *
-     *  :host([opened]:not([persistent])) > #scrim {
-     *    opacity: 1;
-     *    visibility: visible;
-     *  }
-     *
-     * Ref https://goo.gl/1UMIMk
-     */
     :host([opened]) > #scrim {
       opacity: 1;
-      visibility: visible;
     }
 
     :host([opened][persistent]) > #scrim {
+      /**
+       * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+       * scrim from showing when toggling between closed and opened/persistent.
+       */
       opacity: 0;
       visibility: hidden;
     }
@@ -18479,7 +18718,7 @@ Custom property | Description | Default
 
     <div id="scrim" on-tap="_scrimTapHandler"></div>
 
-    <div id="contentContainer">
+    <div id="contentContainer" position$="{{position}}">
       <content></content>
     </div>
 
@@ -18513,12 +18752,22 @@ Custom property | Description | Default
         },
 
         /**
-         * The position of the drawer on the screen ('left' or 'right').
+         * The alignment of the drawer on the screen ('start', 'end', 'left', or 'right').
+         * 'start' computes to left and 'end' to right in LTR layout and vice versa in RTL
+         * layout.
+         */
+        align: {
+          type: String,
+          value: 'start',
+        },
+
+        /**
+         * The computed, read-only position of the drawer on the screen ('left' or 'right').
          */
         position: {
           type: String,
-          value: 'left',
-          reflectToAttribute: true
+          readOnly: true,
+          value: 'left'
         },
 
         /**
@@ -18539,7 +18788,8 @@ Custom property | Description | Default
 
       observers: [
         'resetLayout(position)',
-        '_updateDocScroll(persistent)'
+        '_updateDocScroll(persistent)',
+        '_resetPosition(align)'
       ],
 
       _translateOffset: 0,
@@ -18548,15 +18798,23 @@ Custom property | Description | Default
 
       _isDrawerFlinging: false,
 
-      attached: function() {
+      ready: function() {
         // Set the scroll direction so you can vertically scroll inside the drawer.
         this.setScrollDirection('y');
 
         // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
         // may need to set the initial opened state which should not be transitioned).
-        this.$.contentContainer.style.transition = 'none';
+        this.$.contentContainer.style.transitionDuration = '0s';
+      },
+
+      attached: function() {
+        // Reset position when drawer is attached and can get its computed direction.
+        this._resetPosition();
+
+        // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
+        // may need to set the initial opened state which should not be transitioned).
         this.async(function() {
-          this.$.contentContainer.style.transition = '';
+          this.$.contentContainer.style.transitionDuration = '';
         });
       },
 
@@ -18596,15 +18854,26 @@ Custom property | Description | Default
         }, 1);
       },
 
-      _scrimTapHandler: function() {
-        if (this.persistent) {
-          return;
-        }
+      _isRTL: function() {
+        return window.getComputedStyle(this).direction === 'rtl';
+      },
 
-        // This debouncer is needed because of Polymer/polymer#3405.
-        this.debounce('_scrimTapHandler', function() {
+      _resetPosition: function() {
+        switch (this.align) {
+          case 'start':
+            this._setPosition(this._isRTL() ? 'right' : 'left');
+            return;
+          case 'end':
+            this._setPosition(this._isRTL() ? 'left' : 'right');
+            return;
+        }
+        this._setPosition(this.align);
+      },
+
+      _scrimTapHandler: function() {
+        if (!this.persistent) {
           this.opened = false;
-        }, 1);
+        }
       },
 
       _track: function(event) {
@@ -18632,10 +18901,10 @@ Custom property | Description | Default
         // Disable transitions since style attributes will reflect user track events.
         this.$.contentContainer.style.transitionDuration = '0s';
         this.$.scrim.style.transitionDuration = '0s';
-        this.$.scrim.style.visibility = 'visible';
+        this.style.visibility = 'visible';
 
         var rect = this.$.contentContainer.getBoundingClientRect();
-        if (this.position == 'left') {
+        if (this.position === 'left') {
           this._translateOffset = rect.left;
         } else {
           this._translateOffset = rect.right - window.innerWidth;
@@ -18650,28 +18919,25 @@ Custom property | Description | Default
       },
 
       _trackEnd: function(event) {
-        // Track handler takes precedence over scrim tap handler. See Polymer/polymer#3405.
-        this.cancelDebouncer('_scrimTapHandler');
-
         // Calculate the velocity.
         this._velocity = this._calculateVelocity(event);
 
         // No longer need the track events after calculating velocity - allow them to be GC'd.
         this._trackEvents = null;
 
-        if (Math.abs(this._velocity) > this.MIN_FLING_VELOCITY) {
-          // If velocity is above the threshold, fling the drawer in the same direction.
-          this._flingDrawer(event);
-        } else {
-          // Otherwise, toggle the opened state based on the position of the drawer.
-          var halfWidth = this.getWidth() / 2;
-          if (event.detail.dx < -halfWidth) {
-            this.opened = this.position === 'right';
-          } else if (event.detail.dx > halfWidth) {
-            this.opened = this.position === 'left';
-          }
-          this._resetStyleAttributes();
+        if (this._flingDrawer(event)) {
+          return;
         }
+
+        // If the drawer is not flinging, toggle the opened state based on the position of
+        // the drawer.
+        var halfWidth = this.getWidth() / 2;
+        if (event.detail.dx < -halfWidth) {
+          this.opened = this.position === 'right';
+        } else if (event.detail.dx > halfWidth) {
+          this.opened = this.position === 'left';
+        }
+        this._resetStyleAttributes();
       },
 
       _calculateVelocity: function(event) {
@@ -18679,7 +18945,7 @@ Custom property | Description | Default
         var timeLowerBound = Date.now() - 100;
         var trackEvent;
         var min = 0;
-        var max = this._trackEvents.length - 1;        
+        var max = this._trackEvents.length - 1;
 
         while (min <= max) {
           // Floor of average of min and max.
@@ -18701,13 +18967,34 @@ Custom property | Description | Default
         return 0;
       },
 
+      /**
+       * @return {boolean} True if the drawer will be flinging, false otherwise.
+       */
       _flingDrawer: function(event) {
+        // Do not fling if velocity is not above a threshold.
+        if (Math.abs(this._velocity) < this.MIN_FLING_VELOCITY) {
+          return false;
+        }
+
         var x = event.detail.dx + this._translateOffset;
         var drawerWidth = this.getWidth();
         var isPositionLeft = this.position === 'left';
         var isVelocityPositive = this._velocity > 0;
         var isClosingLeft = !isVelocityPositive && isPositionLeft;
         var isClosingRight = isVelocityPositive && !isPositionLeft;
+        var dx;
+        if (isClosingLeft) {
+          dx = -(x + drawerWidth);
+        } else if (isClosingRight) {
+          dx = (drawerWidth - x);
+        } else {
+          dx = -x;
+        }
+
+        // Do not fling if there is no difference between the current and end state.
+        if ((isVelocityPositive && dx <= 0) || (!isVelocityPositive && dx >= 0)) {
+          return false;
+        }
 
         // Enforce a minimum transition velocity to make the drawer feel snappy.
         if (isVelocityPositive) {
@@ -18718,15 +19005,7 @@ Custom property | Description | Default
 
         // Calculate the amount of time needed to finish the transition based on the initial
         // slope of the timing function.
-        var duration;
-        if (isClosingLeft) {
-          duration = (this.FLING_INITIAL_SLOPE * -(x + drawerWidth) / this._velocity) + 'ms';
-        } else if (isClosingRight) {
-          duration = (this.FLING_INITIAL_SLOPE * (drawerWidth - x) / this._velocity) + 'ms';
-        } else {
-          duration = (this.FLING_INITIAL_SLOPE * -x / this._velocity) + 'ms';
-        }
-
+        var duration = (this.FLING_INITIAL_SLOPE * dx / this._velocity) + 'ms';
         this.$.contentContainer.style.transitionDuration = duration;
         this.$.contentContainer.style.transitionTimingFunction = this.FLING_TIMING_FUNCTION;
         this.$.scrim.style.transitionDuration = duration;
@@ -18742,6 +19021,7 @@ Custom property | Description | Default
         }
 
         this._isDrawerFlinging = true;
+        return true;
       },
 
       _transitionEnd: function(event) {
@@ -18771,9 +19051,9 @@ Custom property | Description | Default
       },
 
       _resetStyleAttributes: function() {
+        this.style.visibility = '';
         this.$.contentContainer.style.transitionDuration = '';
         this.$.scrim.style.transitionDuration = '';
-        this.$.scrim.style.visibility = '';
         this.$.scrim.style.opacity = '';
         this.transform('', this.$.contentContainer);
       },
@@ -19320,7 +19600,7 @@ Custom property | Description | Default
        * @return {boolean}
        */
       isOnScreen: function() {
-        return this._height !== 0 && (this._top === 0 || this._top < this._height);
+        return this._height !== 0 && this._top < this._height;
       },
 
       /**
@@ -19407,6 +19687,7 @@ Custom property | Description | Default
     #contentContainer {
       position: relative;
       overflow-y: hidden;
+      @apply(--app-header-layout-content);
     }
 
   </style>
@@ -19468,9 +19749,10 @@ Custom property | Description | Default
        * @method resetLayout
        */
       resetLayout: function() {
+        this._updateScroller();
         this.debounce('_resetLayout', function() {
           this._updateContentPosition();
-          this._updateScroller();
+          this._updateFixedNodesPosition();
         });
       },
 
@@ -19512,7 +19794,6 @@ Custom property | Description | Default
         var header = this.header;
         if (header) {
           header.scroller = this.hasScrollingRegion ? this.$.contentContainer : window;
-          this._updateFixedNodesPosition();
         }
       },
 
@@ -19553,6 +19834,10 @@ Custom property | Description | Default
 
       },
 
+      observers: [
+        '_updateScrollPos(selected, reset)'
+      ],
+
       created: function() {
         this._scrollposMap = {};
       },
@@ -19561,12 +19846,17 @@ Custom property | Description | Default
         if (old != null) {
           this._scrollposMap[old] = {x: window.pageXOffset, y: window.pageYOffset};
         }
-        var pos = this._scrollposMap[selected];
-        if (pos != null && !this.reset) {
-          this._scrollTo(pos.x, pos.y);
-        } else {
-          this._scrollTo(0, 0);
-        }
+      },
+
+      _updateScrollPos: function(selected, reset) {
+        this.debounce('_updateScrollPos', function() {
+          var pos = this._scrollposMap[this.selected];
+          if (pos != null && !this.reset) {
+            this._scrollTo(pos.x, pos.y);
+          } else {
+            this._scrollTo(0, 0);
+          }
+        });
       },
 
       _scrollTo: function(x, y) {
@@ -19791,9 +20081,8 @@ Custom property | Description | Default
     <style>
 
       :host {
-        @apply(--layout-horizontal);
+        @apply(--layout-vertical);
         @apply(--layout-center-center);
-        @apply(--layout-wrap);
         position: relative;
         text-align: center;
         width: 100%;
@@ -19804,21 +20093,17 @@ Custom property | Description | Default
       .pic {
         width: 50%;
         height: 50%;
-        position: absolute;
-        top: 25%;
-        left: 25%;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: 50% 50%;
         transition: opacity 0.5s;
+        margin-top: 40px;
       }
 
       .link {
-        opacity: 0;
-        position: relative;
         transition: opacity 0.5s;
         font-family: 'Abril Fatface', cursive;
-        font-size: 32px;
+        font-size: 2em;
         color: #0a3142;
       }
 
@@ -19826,17 +20111,15 @@ Custom property | Description | Default
         position: absolute;
         top: 20px;
         right: 20px;
+        font-size: 1em;
         color: #111;
         font-weight: bold;
       }
 
       .author {
-        position: absolute;
-        bottom: 20px;
-        left: 20px;
         font-size: 11px;
         color: #999;
-        line-height: 30px;
+        line-height: 5em;
       }
 
       .author img {
@@ -19852,7 +20135,6 @@ Custom property | Description | Default
         position: absolute;
         top: 12px;
         left: 12px;
-        opacity: 0;
         transition: opacity 0.5s;
       }
 
@@ -19865,7 +20147,7 @@ Custom property | Description | Default
 
       :host::after {
         content: "";
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
         position: absolute;
         top: 0;
         left: 0;
@@ -19874,38 +20156,23 @@ Custom property | Description | Default
         opacity: 0;
         transition: opacity 0.5s;
         pointer-events: none;
+        /* create a layer to only invalidate this layer for :hover */
+        transform: translateZ(0);
       }
 
       :host:hover::after {
         opacity: 1;
       }
 
-      :host:hover .pic {
-        opacity: 0.2;
-      }
-
-      :host:hover .link {
-        opacity: 1;
-      }
-
-      :host:hover .icons {
-        opacity: 1;
-      }
-
     </style>
 
     <div class="pic" style$="background-image: url([[item.imageUrl]]);"></div>
-    <span class="link">[[item.title]]</span>
+    <div class="link">[[item.title]]</div>
     <span class="price">[[item.price]]</span>
 
     <div class="author">
       <img src="[[item.storeAvatarUrl]]">
       [[item.storeName]]
-    </div>
-
-    <div class="icons">
-      <iron-icon icon="shopping-cart"></iron-icon>
-      <iron-icon icon="favorite"></iron-icon>
     </div>
 
   </template>
@@ -20164,6 +20431,7 @@ Custom property | Description | Default
         .grid {
           padding-left: 10px;
           padding-right: 10px;
+          font-size: 0.7em;
         }
 
         .grid > .item {
@@ -20171,6 +20439,25 @@ Custom property | Description | Default
           flex: 1 calc(50% - 20px);
           max-width: calc(50% - 20px);
           margin: 10px;
+          text-decoration: none;
+          background-color: white;
+        }
+      }
+
+      /**
+       * Phone
+       */
+      @media (max-width: 400px) {
+        .grid {
+          padding-left: 10px;
+          padding-right: 10px;
+        }
+
+        .grid > .item {
+          -webkit-flex: 1 calc(100% - 10px);
+          flex: 1 calc(1000% - 10px);
+          max-width: calc(100% - 10px);
+          margin: 5px;
           text-decoration: none;
           background-color: white;
         }
@@ -20388,6 +20675,7 @@ Custom property | Description | Default
         @apply(--layout-horizontal);
         @apply(--layout-center-center);
         @apply(--layout-wrap);
+        position: relative;
         text-align: center;
         width: 100%;
         height: 100%;
@@ -20405,7 +20693,7 @@ Custom property | Description | Default
 
       :host::after {
         content: "";
-        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
         position: absolute;
         top: 0;
         left: 0;
@@ -20414,14 +20702,12 @@ Custom property | Description | Default
         opacity: 0;
         transition: opacity 0.5s;
         pointer-events: none;
+        /* create a layer to only invalidate this layer for :hover */
+        transform: translateZ(0);
       }
 
       :host:hover::after {
         opacity: 1;
-      }
-
-      :host:hover .pic {
-        opacity: 0.2;
       }
 
     </style>
@@ -20505,7 +20791,8 @@ Custom property | Description | Default
       }
 
       .image {
-        width: 40%;
+        width: 40vmin;
+        position: relative;
       }
 
       .image img {
@@ -20530,6 +20817,9 @@ Custom property | Description | Default
 
       .info {
         color: rgba(255, 223, 223, 1);
+        position: absolute;
+        top: 0;
+        right: 0;
       }
 
       .quantitySelector {
@@ -20559,7 +20849,8 @@ Custom property | Description | Default
         background-color: white;
         border-radius: 0;
         position: relative;
-        min-width: 140px;
+        min-width: 180px;
+        font-size: 20px;
       }
 
       .quantitySelector select:focus {
@@ -20583,6 +20874,7 @@ Custom property | Description | Default
 
       paper-fab {
         --paper-fab-background: #31f0ef;
+        --paper-fab-keyboard-focus-background: #21e0df;
         color: #0a3142;
         display: -webkit-inline-flex;
         display: inline-flex;
@@ -20635,6 +20927,15 @@ Custom property | Description | Default
           flex: 1 calc(50% - 20px);
           max-width: calc(50% - 20px);
         }
+
+        h1 {
+          text-align: center;
+        }
+
+        .detailGrid {
+          width: 100%;
+          padding: 32px 0 64px;
+        }
       }
 
     </style>
@@ -20653,10 +20954,11 @@ Custom property | Description | Default
       <div class="detailGrid">
         <div class="image">
           <img id="img">
+          <div class="info">
+            <paper-icon-button icon="info-outline"></paper-icon-button>
+          </div>
         </div>
-        <div class="info">
-          <paper-icon-button icon="info-outline"></paper-icon-button>
-        </div>
+    
         <div class="content">
           <h1>[[item.title]]</h1>
           <p>[[item.description]]</p>
@@ -20931,7 +21233,7 @@ Custom property | Description | Default
               <paper-icon-button icon="more-vert"></paper-icon-button>
             </div>
           </app-toolbar>
-          <paper-tabs selected="{{selectedTab}}" scrollable="" primary$="[[!_isItemHash(urlHash)]]">
+          <paper-tabs selected="{{selectedTab}}" scrollable="" primary$="[[_shouldShowTabs(urlHash, smallScreen)]]">
             <template is="dom-repeat" items="[[sections]]" as="section">
               <paper-tab>
                 <a href="#[[section]]">[[section]]</a>
@@ -21027,7 +21329,6 @@ Custom property | Description | Default
       var itemLookup = this._getItemFromHash(urlHash);
 
       if (itemLookup !== null) {
-
         this.detailItem = items.filter(function(item) {
           return item.id === itemLookup.id;
         }).pop();
@@ -21054,8 +21355,9 @@ Custom property | Description | Default
           this.listItems = items.slice();
         }
       }
-
+      // TODO(blasten) Polymer.AppScrollEffects(0);
       this.$.header._scrollTop = 0;
+      this.$.header.resetLayout();
       this.$.drawer.close();
     },
 
@@ -21079,6 +21381,10 @@ Custom property | Description | Default
 
     _getSectionClass: function(index, selectedTab) {
       return index === selectedTab ? 'active' : '';
+    },
+
+    _shouldShowTabs: function(urlHash, smallScreen) {
+      return !this._isItemHash(urlHash) && !smallScreen;
     }
 
   });
