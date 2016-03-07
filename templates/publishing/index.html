@@ -2517,9 +2517,36 @@ window.CustomElements.addModule(function(scope) {
   head.insertBefore(style, head.firstChild);
 })(window.WebComponents);</script>
 
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,500,500italic,700,700italic">
+  <style>
+
+    body {
+      margin: 0;
+      font-family: 'Roboto', 'Noto', sans-serif;
+      background-color: #fafafa;
+    }
+
+  </style>
+
+</head>
+<body unresolved=""><div hidden="" by-vulcanize=""><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,500,500italic,700,700italic">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,700">
-<script>(function () {
+<!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>(function () {
 function resolve() {
 document.body.removeAttribute('unresolved');
 }
@@ -3161,7 +3188,7 @@ return value != null ? value : undefined;
 }
 }
 });
-Polymer.version = '1.3.0';
+Polymer.version = '1.3.1';
 Polymer.Base._addFeature({
 _registerFeatures: function () {
 this._prepIs();
@@ -5327,7 +5354,15 @@ this._tryReady();
 },
 _marshalBehavior: function (b) {
 }
-});</script><script>Polymer.nar = [];
+});</script><!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>Polymer.nar = [];
 Polymer.Annotations = {
 parseAnnotations: function (template) {
 var list = [];
@@ -8178,7 +8213,8 @@ this._encapsulateStyle = !nativeShadow && Boolean(this._template);
 if (this._template) {
 this._styles = this._collectStyles();
 var cssText = styleTransformer.elementStyles(this);
-var needsStatic = this._needsStaticStyles(this._styles);
+this._prepStyleProperties();
+var needsStatic = this._styles.length && !this._needsStyleProperties();
 if (needsStatic || !nativeShadow) {
 cssText = needsStatic ? cssText : ' ';
 var style = styleUtil.applyCss(cssText, this.is, nativeShadow ? this._template.content : null);
@@ -8318,9 +8354,10 @@ return any;
 }
 },
 collectCssText: function (rule) {
-var cssText = rule.parsedCssText;
-cssText = cssText.replace(this.rx.BRACKETED, '').replace(this.rx.VAR_ASSIGN, '');
-return cssText;
+return this.collectConsumingCssText(rule.parsedCssText);
+},
+collectConsumingCssText: function (cssText) {
+return cssText.replace(this.rx.BRACKETED, '').replace(this.rx.VAR_ASSIGN, '');
 },
 collectPropertiesInCssText: function (cssText, props) {
 var m;
@@ -8475,7 +8512,7 @@ self._scopeSelector(rule, hostRx, hostSelector, element._scopeCssViaAttr, scopeS
 _elementKeyframeTransforms: function (element, scopeSelector) {
 var keyframesRules = element._styles._keyframes;
 var keyframeTransforms = {};
-if (!nativeShadow) {
+if (!nativeShadow && keyframesRules) {
 for (var i = 0, keyframesRule = keyframesRules[i]; i < keyframesRules.length; keyframesRule = keyframesRules[++i]) {
 this._scopeKeyframes(keyframesRule, scopeSelector);
 keyframeTransforms[keyframesRule.keyframesName] = this._keyframesRuleTransformer(keyframesRule);
@@ -8664,24 +8701,12 @@ return api;
 'use strict';
 var serializeValueToAttribute = Polymer.Base.serializeValueToAttribute;
 var propertyUtils = Polymer.StyleProperties;
-var styleUtil = Polymer.StyleUtil;
 var styleTransformer = Polymer.StyleTransformer;
 var styleDefaults = Polymer.StyleDefaults;
 var nativeShadow = Polymer.Settings.useNativeShadow;
 Polymer.Base._addFeature({
-_needsStaticStyles: function (styles) {
-var needsStatic;
-for (var i = 0, l = styles.length, css; i < l; i++) {
-css = styleUtil.parser._clean(styles[i].textContent);
-needsStatic = needsStatic || Boolean(css);
-if (css.match(propertyUtils.rx.MIXIN_MATCH) || css.match(propertyUtils.rx.VAR_MATCH)) {
-return false;
-}
-}
-return needsStatic;
-},
 _prepStyleProperties: function () {
-this._ownStylePropertyNames = this._styles ? propertyUtils.decorateStyles(this._styles) : null;
+this._ownStylePropertyNames = this._styles && this._styles.length ? propertyUtils.decorateStyles(this._styles) : null;
 },
 customStyle: null,
 getComputedStyleValue: function (property) {
@@ -8840,7 +8865,6 @@ this._prepIs();
 this._prepConstructor();
 this._prepTemplate();
 this._prepStyles();
-this._prepStyleProperties();
 this._prepAnnotations();
 this._prepEffects();
 this._prepBehaviors();
@@ -10036,7 +10060,13 @@ _template: null,
 created: function () {
 var self = this;
 Polymer.RenderStatus.whenReady(function () {
+if (document.readyState == 'loading') {
+document.addEventListener('DOMContentLoaded', function () {
 self._markImportsReady();
+});
+} else {
+self._markImportsReady();
+}
 });
 },
 _ensureReady: function () {
@@ -10105,7 +10135,15 @@ this._children = Polymer.TreeApi.arrayCopyChildNodes(this.root);
 this._insertChildren();
 this.fire('dom-change');
 }
-});</script>
+});</script><!--
+@license
+Copyright (c) 2014 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <script>function MakePromise (asap) {
   function Promise(fn) {
 		if (typeof this !== 'object' || typeof fn !== 'function') throw new TypeError();
@@ -10240,15 +10278,8 @@ if (!window.Promise) {
   window.Promise = MakePromise(Polymer.Base.async);
 }
 </script>
-<!--
-iron-request can be used to perform XMLHttpRequests.
-
-    <iron-request id="xhr"></iron-request>
-    ...
-    this.$.xhr.send({url: url, params: params});
--->
 <script>
-  'use strict'
+  'use strict';
 
   Polymer({
     is: 'iron-request',
@@ -10399,6 +10430,9 @@ iron-request can be used to perform XMLHttpRequests.
 
     /**
      * Sends an HTTP request to the server and returns the XHR object.
+     *
+     * The handling of the `body` parameter will vary based on the Content-Type
+     * header. See the docs for iron-ajax's `body` param for details.
      *
      * @param {{
      *   url: string,
@@ -10660,31 +10694,12 @@ iron-request can be used to perform XMLHttpRequests.
       this._setStatusText((this.xhr.statusText === undefined) ? '' : this.xhr.statusText);
     }
   });
-</script>
+</script><!--
+iron-request can be used to perform XMLHttpRequests.
 
-<!--
-The `iron-ajax` element exposes network request functionality.
-
-    <iron-ajax
-        auto
-        url="http://gdata.youtube.com/feeds/api/videos/"
-        params='{"alt":"json", "q":"chrome"}'
-        handle-as="json"
-        on-response="handleResponse"
-        debounce-duration="300"></iron-ajax>
-
-With `auto` set to `true`, the element performs a request whenever
-its `url`, `params` or `body` properties are changed. Automatically generated
-requests will be debounced in the case that multiple attributes are changed
-sequentially.
-
-Note: The `params` attribute must be double quoted JSON.
-
-You can trigger a request explicitly by calling `generateRequest` on the
-element.
-
-@demo demo/index.html
-@hero hero.svg
+    <iron-request id="xhr"></iron-request>
+    ...
+    this.$.xhr.send({url: url, params: params});
 -->
 
 <script>
@@ -10771,6 +10786,8 @@ element.
        * Content type to use when sending data. If the `contentType` property
        * is set and a `Content-Type` header is specified in the `headers`
        * property, the `headers` property value will take precedence.
+       *
+       * Varies the handling of the `body` param.
        */
       contentType: {
         type: String,
@@ -10949,6 +10966,16 @@ element.
         value: ''
       },
 
+      /**
+       * By default, these events do not bubble largely because the `error` event has special
+       * meaning in the window object. Setting this attribute will cause iron-ajax's request,
+       * response, and error events to bubble to the window object.
+       */
+      bubbles: {
+        type: Boolean,
+        value: false
+      },
+
       _boundHandleResponse: {
         type: Function,
         value: function() {
@@ -11090,7 +11117,7 @@ element.
       this.fire('request', {
         request: request,
         options: requestOptions
-      }, {bubbles: false});
+      }, {bubbles: this.bubbles});
 
       return request;
     },
@@ -11101,7 +11128,7 @@ element.
         this._setLastError(null);
         this._setLoading(false);
       }
-      this.fire('response', request, {bubbles: false});
+      this.fire('response', request, {bubbles: this.bubbles});
     },
 
     _handleError: function(request, error) {
@@ -11120,7 +11147,7 @@ element.
       this.fire('error', {
         request: request,
         error: error
-      }, {bubbles: false});
+      }, {bubbles: this.bubbles});
     },
 
     _discardRequest: function(request) {
@@ -11144,7 +11171,32 @@ element.
     },
 
   });
-</script>
+</script><!--
+The `iron-ajax` element exposes network request functionality.
+
+    <iron-ajax
+        auto
+        url="http://gdata.youtube.com/feeds/api/videos/"
+        params='{"alt":"json", "q":"chrome"}'
+        handle-as="json"
+        on-response="handleResponse"
+        debounce-duration="300"></iron-ajax>
+
+With `auto` set to `true`, the element performs a request whenever
+its `url`, `params` or `body` properties are changed. Automatically generated
+requests will be debounced in the case that multiple attributes are changed
+sequentially.
+
+Note: The `params` attribute must be double quoted JSON.
+
+You can trigger a request explicitly by calling `generateRequest` on the
+element.
+
+@demo demo/index.html
+@hero hero.svg
+-->
+
+
 <script>
 (function() {
 
@@ -11357,7 +11409,58 @@ element.
 })();
 </script>
 
+<dom-module id="lab-router" assetpath="../../../lab-elements/">
+  <script>
+
+    Polymer({
+
+      is: 'lab-router',
+
+      behaviors: [
+        Polymer.LabRoutingBehavior,
+        Polymer.LabRoutingRootBehavior
+      ],
+
+      properties: {
+
+        route: {
+          notify: true
+        },
+
+        matches: {
+          value: ':base'
+        }
+
+      }
+
+    });
+  </script>
+</dom-module>
+
+<dom-module id="lab-route" assetpath="../../../lab-elements/">
+  <script>
+
+    Polymer({
+
+      is: 'lab-route',
+
+      behaviors: [
+        Polymer.LabRoutingBehavior
+      ]
+
+    });
+
+  </script>
+</dom-module>
 <!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
 The `<iron-flex-layout>` component provides simple ways to use
 [CSS flexible box layout](https://developer.mozilla.org/en-US/docs/Web/Guide/CSS/Flexible_boxes),
 also known as flexbox. This component provides two different ways to use flexbox:
@@ -11695,7 +11798,15 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
   }
 
 </style>
-<script>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
   /**
    * `IronResizableBehavior` is a behavior that can be used in Polymer elements to
    * coordinate the flow of resize events between "resizers" (elements that control the
@@ -12324,6 +12435,14 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
 
 </script>
 <!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
 `iron-pages` is used to select one of its children to show. One use is to cycle through a list of
 children "pages".
 
@@ -12347,7 +12466,65 @@ Example:
 @demo demo/index.html
 -->
 
-<script>
+<dom-module id="iron-pages" assetpath="../../../iron-pages/">
+
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host > ::content > :not(.iron-selected) {
+        display: none !important;
+      }
+    </style>
+
+    <content></content>
+  </template>
+
+  <script>
+    Polymer({
+
+      is: 'iron-pages',
+
+      behaviors: [
+        Polymer.IronResizableBehavior,
+        Polymer.IronSelectableBehavior
+      ],
+
+      properties: {
+
+        // as the selected page is the only one visible, activateEvent
+        // is both non-sensical and problematic; e.g. in cases where a user
+        // handler attempts to change the page and the activateEvent
+        // handler immediately changes it back
+        activateEvent: {
+          type: String,
+          value: null
+        }
+
+      },
+
+      observers: [
+        '_selectedPageChanged(selected)'
+      ],
+
+      _selectedPageChanged: function(selected, old) {
+        this.async(this.notifyResize);
+      }
+    });
+
+  </script>
+</dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
   /** @polymerBehavior Polymer.IronMultiSelectableBehavior */
   Polymer.IronMultiSelectableBehaviorImpl = {
     properties: {
@@ -12541,6 +12718,14 @@ Example:
 
 </script>
 <!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
 `iron-meta` is a generic element you can use for sharing information across the DOM tree.
 It uses [monostate pattern](http://c2.com/cgi/wiki?MonostatePattern) such that any
 instance of iron-meta has access to the shared
@@ -12862,6 +13047,14 @@ Or, in a Polymer element, you can include a meta in your template:
   })();
 </script>
 <!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
 
 The `iron-icon` element displays an icon. By default an icon renders as a 24px square.
 
@@ -12907,6 +13100,10 @@ how to create a custom iconset.
 See the [iron-icons demo](iron-icons?view=demo:demo/index.html) to see the icons available
 in the various iconsets.
 
+To load a subset of icons from one of the default `iron-icons` sets, you can
+use the [poly-icon](https://poly-icon.appspot.com/) tool. It allows you
+to select individual icons, and creates an iconset from them that you can
+use directly in your elements.
 
 ### Styling
 
@@ -12926,7 +13123,139 @@ Custom property | Description | Default
 @homepage polymer.github.io
 -->
 
-<script>
+<dom-module id="iron-icon" assetpath="../../../iron-icon/">
+
+  <style>
+    :host {
+      @apply(--layout-inline);
+      @apply(--layout-center-center);
+      position: relative;
+
+      vertical-align: middle;
+
+      fill: var(--iron-icon-fill-color, currentcolor);
+      stroke: var(--iron-icon-stroke-color, none);
+
+      width: var(--iron-icon-width, 24px);
+      height: var(--iron-icon-height, 24px);
+    }
+  </style>
+
+  <template>
+  </template>
+
+  <script>
+
+    Polymer({
+
+      is: 'iron-icon',
+
+      properties: {
+
+        /**
+         * The name of the icon to use. The name should be of the form:
+         * `iconset_name:icon_name`.
+         */
+        icon: {
+          type: String,
+          observer: '_iconChanged'
+        },
+
+        /**
+         * The name of the theme to used, if one is specified by the
+         * iconset.
+         */
+        theme: {
+          type: String,
+          observer: '_updateIcon'
+        },
+
+        /**
+         * If using iron-icon without an iconset, you can set the src to be
+         * the URL of an individual icon image file. Note that this will take
+         * precedence over a given icon attribute.
+         */
+        src: {
+          type: String,
+          observer: '_srcChanged'
+        },
+
+        /**
+         * @type {!Polymer.IronMeta}
+         */
+        _meta: {
+          value: Polymer.Base.create('iron-meta', {type: 'iconset'}),
+          observer: '_updateIcon'
+        }
+
+      },
+
+      _DEFAULT_ICONSET: 'icons',
+
+      _iconChanged: function(icon) {
+        var parts = (icon || '').split(':');
+        this._iconName = parts.pop();
+        this._iconsetName = parts.pop() || this._DEFAULT_ICONSET;
+        this._updateIcon();
+      },
+
+      _srcChanged: function(src) {
+        this._updateIcon();
+      },
+
+      _usesIconset: function() {
+        return this.icon || !this.src;
+      },
+
+      /** @suppress {visibility} */
+      _updateIcon: function() {
+        if (this._usesIconset()) {
+          if (this._img && this._img.parentNode) {
+            Polymer.dom(this.root).removeChild(this._img);
+          }
+          if (this._iconName === "") {
+            if (this._iconset) {
+              this._iconset.removeIcon(this);
+            }
+          } else if (this._iconsetName && this._meta) {
+            this._iconset = /** @type {?Polymer.Iconset} */ (
+              this._meta.byKey(this._iconsetName));
+            if (this._iconset) {
+              this._iconset.applyIcon(this, this._iconName, this.theme);
+              this.unlisten(window, 'iron-iconset-added', '_updateIcon');
+            } else {
+              this.listen(window, 'iron-iconset-added', '_updateIcon');
+            }
+          }
+        } else {
+          if (this._iconset) {
+            this._iconset.removeIcon(this);
+          }
+          if (!this._img) {
+            this._img = document.createElement('img');
+            this._img.style.width = '100%';
+            this._img.style.height = '100%';
+            this._img.draggable = false;
+          }
+          this._img.src = this.src;
+          Polymer.dom(this.root).appendChild(this._img);
+        }
+      }
+
+    });
+
+  </script>
+
+</dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
   (function() {
     'use strict';
 
@@ -13360,7 +13689,15 @@ Custom property | Description | Default
     };
   })();
 </script>
-<script>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
 
   /**
    * @demo demo/index.html
@@ -13668,7 +14005,15 @@ Custom property | Description | Default
     Polymer.IronButtonStateImpl
   ];
 
-</script>
+</script><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
 <!--
 Material design: [Surface reaction](https://www.google.com/design/spec/animation/responsive-interaction.html#responsive-interaction-surface-reaction)
 
@@ -13732,2234 +14077,6 @@ Apply `circle` class to make the rippling effect within a circle.
 @demo demo/index.html
 -->
 
-<script>
-
-  /**
-   * `Polymer.PaperRippleBehavior` dynamically implements a ripple
-   * when the element has focus via pointer or keyboard.
-   *
-   * NOTE: This behavior is intended to be used in conjunction with and after
-   * `Polymer.IronButtonState` and `Polymer.IronControlState`.
-   *
-   * @polymerBehavior Polymer.PaperRippleBehavior
-   */
-  Polymer.PaperRippleBehavior = {
-
-    properties: {
-      /**
-       * If true, the element will not produce a ripple effect when interacted
-       * with via the pointer.
-       */
-      noink: {
-        type: Boolean,
-        observer: '_noinkChanged'
-      },
-
-      /**
-       * @type {Element|undefined}
-       */
-      _rippleContainer: {
-        type: Object,
-      }
-    },
-
-    /**
-     * Ensures a `<paper-ripple>` element is available when the element is
-     * focused.
-     */
-    _buttonStateChanged: function() {
-      if (this.focused) {
-        this.ensureRipple();
-      }
-    },
-
-    /**
-     * In addition to the functionality provided in `IronButtonState`, ensures
-     * a ripple effect is created when the element is in a `pressed` state.
-     */
-    _downHandler: function(event) {
-      Polymer.IronButtonStateImpl._downHandler.call(this, event);
-      if (this.pressed) {
-        this.ensureRipple(event);
-      }
-    },
-
-    /**
-     * Ensures this element contains a ripple effect. For startup efficiency
-     * the ripple effect is dynamically on demand when needed.
-     * @param {!Event=} optTriggeringEvent (optional) event that triggered the
-     * ripple.
-     */
-    ensureRipple: function(optTriggeringEvent) {
-      if (!this.hasRipple()) {
-        this._ripple = this._createRipple();
-        this._ripple.noink = this.noink;
-        var rippleContainer = this._rippleContainer || this.root;
-        if (rippleContainer) {
-          Polymer.dom(rippleContainer).appendChild(this._ripple);
-        }
-        if (optTriggeringEvent) {
-          // Check if the event happened inside of the ripple container
-          // Fall back to host instead of the root because distributed text
-          // nodes are not valid event targets
-          var domContainer = Polymer.dom(this._rippleContainer || this);
-          var target = Polymer.dom(optTriggeringEvent).rootTarget;
-          if (domContainer.deepContains( /** @type {Node} */(target))) {
-            this._ripple.uiDownAction(optTriggeringEvent);
-          }
-        }
-      }
-    },
-
-    /**
-     * Returns the `<paper-ripple>` element used by this element to create
-     * ripple effects. The element's ripple is created on demand, when
-     * necessary, and calling this method will force the
-     * ripple to be created.
-     */
-    getRipple: function() {
-      this.ensureRipple();
-      return this._ripple;
-    },
-
-    /**
-     * Returns true if this element currently contains a ripple effect.
-     * @return {boolean}
-     */
-    hasRipple: function() {
-      return Boolean(this._ripple);
-    },
-
-    /**
-     * Create the element's ripple effect via creating a `<paper-ripple>`.
-     * Override this method to customize the ripple element.
-     * @return {!PaperRippleElement} Returns a `<paper-ripple>` element.
-     */
-    _createRipple: function() {
-      return /** @type {!PaperRippleElement} */ (
-          document.createElement('paper-ripple'));
-    },
-
-    _noinkChanged: function(noink) {
-      if (this.hasRipple()) {
-        this._ripple.noink = noink;
-      }
-    }
-
-  };
-
-</script>
-<script>
-
-  /** @polymerBehavior Polymer.PaperButtonBehavior */
-  Polymer.PaperButtonBehaviorImpl = {
-
-    properties: {
-
-      /**
-       * The z-depth of this element, from 0-5. Setting to 0 will remove the
-       * shadow, and each increasing number greater than 0 will be "deeper"
-       * than the last.
-       *
-       * @attribute elevation
-       * @type number
-       * @default 1
-       */
-      elevation: {
-        type: Number,
-        reflectToAttribute: true,
-        readOnly: true
-      }
-
-    },
-
-    observers: [
-      '_calculateElevation(focused, disabled, active, pressed, receivedFocusFromKeyboard)',
-      '_computeKeyboardClass(receivedFocusFromKeyboard)'
-    ],
-
-    hostAttributes: {
-      role: 'button',
-      tabindex: '0',
-      animated: true
-    },
-
-    _calculateElevation: function() {
-      var e = 1;
-      if (this.disabled) {
-        e = 0;
-      } else if (this.active || this.pressed) {
-        e = 4;
-      } else if (this.receivedFocusFromKeyboard) {
-        e = 3;
-      }
-      this._setElevation(e);
-    },
-
-    _computeKeyboardClass: function(receivedFocusFromKeyboard) {
-      this.toggleClass('keyboard-focus', receivedFocusFromKeyboard);
-    },
-
-    /**
-     * In addition to `IronButtonState` behavior, when space key goes down,
-     * create a ripple down effect.
-     *
-     * @param {!KeyboardEvent} event .
-     */
-    _spaceKeyDownHandler: function(event) {
-      Polymer.IronButtonStateImpl._spaceKeyDownHandler.call(this, event);
-      // Ensure that there is at most one ripple when the space key is held down.
-      if (this.hasRipple() && this.getRipple().ripples.length < 1) {
-        this._ripple.uiDownAction();
-      }
-    },
-
-    /**
-     * In addition to `IronButtonState` behavior, when space key goes up,
-     * create a ripple up effect.
-     *
-     * @param {!KeyboardEvent} event .
-     */
-    _spaceKeyUpHandler: function(event) {
-      Polymer.IronButtonStateImpl._spaceKeyUpHandler.call(this, event);
-      if (this.hasRipple()) {
-        this._ripple.uiUpAction();
-      }
-    }
-
-  };
-
-  /** @polymerBehavior */
-  Polymer.PaperButtonBehavior = [
-    Polymer.IronButtonState,
-    Polymer.IronControlState,
-    Polymer.PaperRippleBehavior,
-    Polymer.PaperButtonBehaviorImpl
-  ];
-
-</script>
-<style is="custom-style">
-
-  :root {
-
-    --shadow-transition: {
-      transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    };
-
-    --shadow-none: {
-      box-shadow: none;
-    };
-
-    /* from http://codepen.io/shyndman/pen/c5394ddf2e8b2a5c9185904b57421cdb */
-
-    --shadow-elevation-2dp: {
-      box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
-                  0 1px 5px 0 rgba(0, 0, 0, 0.12),
-                  0 3px 1px -2px rgba(0, 0, 0, 0.2);
-    };
-
-    --shadow-elevation-3dp: {
-      box-shadow: 0 3px 4px 0 rgba(0, 0, 0, 0.14),
-                  0 1px 8px 0 rgba(0, 0, 0, 0.12),
-                  0 3px 3px -2px rgba(0, 0, 0, 0.4);
-    };
-
-    --shadow-elevation-4dp: {
-      box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14),
-                  0 1px 10px 0 rgba(0, 0, 0, 0.12),
-                  0 2px 4px -1px rgba(0, 0, 0, 0.4);
-    };
-
-    --shadow-elevation-6dp: {
-      box-shadow: 0 6px 10px 0 rgba(0, 0, 0, 0.14),
-                  0 1px 18px 0 rgba(0, 0, 0, 0.12),
-                  0 3px 5px -1px rgba(0, 0, 0, 0.4);
-    };
-
-    --shadow-elevation-8dp: {
-      box-shadow: 0 8px 10px 1px rgba(0, 0, 0, 0.14),
-                  0 3px 14px 2px rgba(0, 0, 0, 0.12),
-                  0 5px 5px -3px rgba(0, 0, 0, 0.4);
-    };
-
-    --shadow-elevation-12dp: {
-      box-shadow: 0 12px 16px 1px rgba(0, 0, 0, 0.14),
-                  0 4px 22px 3px rgba(0, 0, 0, 0.12),
-                  0 6px 7px -4px rgba(0, 0, 0, 0.4);
-    };
-
-    --shadow-elevation-16dp: {
-      box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14),
-                  0  6px 30px 5px rgba(0, 0, 0, 0.12),
-                  0  8px 10px -5px rgba(0, 0, 0, 0.4);
-    };
-
-  }
-
-</style>
-<style is="custom-style">
-
-  :root {
-
-    /* Material Design color palette for Google products */
-
-    --google-red-100: #f4c7c3;
-    --google-red-300: #e67c73;
-    --google-red-500: #db4437;
-    --google-red-700: #c53929;
-
-    --google-blue-100: #c6dafc;
-    --google-blue-300: #7baaf7;
-    --google-blue-500: #4285f4;
-    --google-blue-700: #3367d6;
-
-    --google-green-100: #b7e1cd;
-    --google-green-300: #57bb8a;
-    --google-green-500: #0f9d58;
-    --google-green-700: #0b8043;
-
-    --google-yellow-100: #fce8b2;
-    --google-yellow-300: #f7cb4d;
-    --google-yellow-500: #f4b400;
-    --google-yellow-700: #f09300;
-
-    --google-grey-100: #f5f5f5;
-    --google-grey-300: #e0e0e0;
-    --google-grey-500: #9e9e9e;
-    --google-grey-700: #616161;
-    
-    /* Material Design color palette from online spec document */
-
-    --paper-red-50: #ffebee;
-    --paper-red-100: #ffcdd2;
-    --paper-red-200: #ef9a9a;
-    --paper-red-300: #e57373;
-    --paper-red-400: #ef5350;
-    --paper-red-500: #f44336;
-    --paper-red-600: #e53935;
-    --paper-red-700: #d32f2f;
-    --paper-red-800: #c62828;
-    --paper-red-900: #b71c1c;
-    --paper-red-a100: #ff8a80;
-    --paper-red-a200: #ff5252;
-    --paper-red-a400: #ff1744;
-    --paper-red-a700: #d50000;
- 
-    --paper-pink-50: #fce4ec;
-    --paper-pink-100: #f8bbd0;
-    --paper-pink-200: #f48fb1;
-    --paper-pink-300: #f06292;
-    --paper-pink-400: #ec407a;
-    --paper-pink-500: #e91e63;
-    --paper-pink-600: #d81b60;
-    --paper-pink-700: #c2185b;
-    --paper-pink-800: #ad1457;
-    --paper-pink-900: #880e4f;
-    --paper-pink-a100: #ff80ab;
-    --paper-pink-a200: #ff4081;
-    --paper-pink-a400: #f50057;
-    --paper-pink-a700: #c51162;
- 
-    --paper-purple-50: #f3e5f5;
-    --paper-purple-100: #e1bee7;
-    --paper-purple-200: #ce93d8;
-    --paper-purple-300: #ba68c8;
-    --paper-purple-400: #ab47bc;
-    --paper-purple-500: #9c27b0;
-    --paper-purple-600: #8e24aa;
-    --paper-purple-700: #7b1fa2;
-    --paper-purple-800: #6a1b9a;
-    --paper-purple-900: #4a148c;
-    --paper-purple-a100: #ea80fc;
-    --paper-purple-a200: #e040fb;
-    --paper-purple-a400: #d500f9;
-    --paper-purple-a700: #aa00ff;
- 
-    --paper-deep-purple-50: #ede7f6;
-    --paper-deep-purple-100: #d1c4e9;
-    --paper-deep-purple-200: #b39ddb;
-    --paper-deep-purple-300: #9575cd;
-    --paper-deep-purple-400: #7e57c2;
-    --paper-deep-purple-500: #673ab7;
-    --paper-deep-purple-600: #5e35b1;
-    --paper-deep-purple-700: #512da8;
-    --paper-deep-purple-800: #4527a0;
-    --paper-deep-purple-900: #311b92;
-    --paper-deep-purple-a100: #b388ff;
-    --paper-deep-purple-a200: #7c4dff;
-    --paper-deep-purple-a400: #651fff;
-    --paper-deep-purple-a700: #6200ea;
- 
-    --paper-indigo-50: #e8eaf6;
-    --paper-indigo-100: #c5cae9;
-    --paper-indigo-200: #9fa8da;
-    --paper-indigo-300: #7986cb;
-    --paper-indigo-400: #5c6bc0;
-    --paper-indigo-500: #3f51b5;
-    --paper-indigo-600: #3949ab;
-    --paper-indigo-700: #303f9f;
-    --paper-indigo-800: #283593;
-    --paper-indigo-900: #1a237e;
-    --paper-indigo-a100: #8c9eff;
-    --paper-indigo-a200: #536dfe;
-    --paper-indigo-a400: #3d5afe;
-    --paper-indigo-a700: #304ffe;
- 
-    --paper-blue-50: #e3f2fd;
-    --paper-blue-100: #bbdefb;
-    --paper-blue-200: #90caf9;
-    --paper-blue-300: #64b5f6;
-    --paper-blue-400: #42a5f5;
-    --paper-blue-500: #2196f3;
-    --paper-blue-600: #1e88e5;
-    --paper-blue-700: #1976d2;
-    --paper-blue-800: #1565c0;
-    --paper-blue-900: #0d47a1;
-    --paper-blue-a100: #82b1ff;
-    --paper-blue-a200: #448aff;
-    --paper-blue-a400: #2979ff;
-    --paper-blue-a700: #2962ff;
- 
-    --paper-light-blue-50: #e1f5fe;
-    --paper-light-blue-100: #b3e5fc;
-    --paper-light-blue-200: #81d4fa;
-    --paper-light-blue-300: #4fc3f7;
-    --paper-light-blue-400: #29b6f6;
-    --paper-light-blue-500: #03a9f4;
-    --paper-light-blue-600: #039be5;
-    --paper-light-blue-700: #0288d1;
-    --paper-light-blue-800: #0277bd;
-    --paper-light-blue-900: #01579b;
-    --paper-light-blue-a100: #80d8ff;
-    --paper-light-blue-a200: #40c4ff;
-    --paper-light-blue-a400: #00b0ff;
-    --paper-light-blue-a700: #0091ea;
- 
-    --paper-cyan-50: #e0f7fa;
-    --paper-cyan-100: #b2ebf2;
-    --paper-cyan-200: #80deea;
-    --paper-cyan-300: #4dd0e1;
-    --paper-cyan-400: #26c6da;
-    --paper-cyan-500: #00bcd4;
-    --paper-cyan-600: #00acc1;
-    --paper-cyan-700: #0097a7;
-    --paper-cyan-800: #00838f;
-    --paper-cyan-900: #006064;
-    --paper-cyan-a100: #84ffff;
-    --paper-cyan-a200: #18ffff;
-    --paper-cyan-a400: #00e5ff;
-    --paper-cyan-a700: #00b8d4;
- 
-    --paper-teal-50: #e0f2f1;
-    --paper-teal-100: #b2dfdb;
-    --paper-teal-200: #80cbc4;
-    --paper-teal-300: #4db6ac;
-    --paper-teal-400: #26a69a;
-    --paper-teal-500: #009688;
-    --paper-teal-600: #00897b;
-    --paper-teal-700: #00796b;
-    --paper-teal-800: #00695c;
-    --paper-teal-900: #004d40;
-    --paper-teal-a100: #a7ffeb;
-    --paper-teal-a200: #64ffda;
-    --paper-teal-a400: #1de9b6;
-    --paper-teal-a700: #00bfa5;
- 
-    --paper-green-50: #e8f5e9;
-    --paper-green-100: #c8e6c9;
-    --paper-green-200: #a5d6a7;
-    --paper-green-300: #81c784;
-    --paper-green-400: #66bb6a;
-    --paper-green-500: #4caf50;
-    --paper-green-600: #43a047;
-    --paper-green-700: #388e3c;
-    --paper-green-800: #2e7d32;
-    --paper-green-900: #1b5e20;
-    --paper-green-a100: #b9f6ca;
-    --paper-green-a200: #69f0ae;
-    --paper-green-a400: #00e676;
-    --paper-green-a700: #00c853;
- 
-    --paper-light-green-50: #f1f8e9;
-    --paper-light-green-100: #dcedc8;
-    --paper-light-green-200: #c5e1a5;
-    --paper-light-green-300: #aed581;
-    --paper-light-green-400: #9ccc65;
-    --paper-light-green-500: #8bc34a;
-    --paper-light-green-600: #7cb342;
-    --paper-light-green-700: #689f38;
-    --paper-light-green-800: #558b2f;
-    --paper-light-green-900: #33691e;
-    --paper-light-green-a100: #ccff90;
-    --paper-light-green-a200: #b2ff59;
-    --paper-light-green-a400: #76ff03;
-    --paper-light-green-a700: #64dd17;
- 
-    --paper-lime-50: #f9fbe7;
-    --paper-lime-100: #f0f4c3;
-    --paper-lime-200: #e6ee9c;
-    --paper-lime-300: #dce775;
-    --paper-lime-400: #d4e157;
-    --paper-lime-500: #cddc39;
-    --paper-lime-600: #c0ca33;
-    --paper-lime-700: #afb42b;
-    --paper-lime-800: #9e9d24;
-    --paper-lime-900: #827717;
-    --paper-lime-a100: #f4ff81;
-    --paper-lime-a200: #eeff41;
-    --paper-lime-a400: #c6ff00;
-    --paper-lime-a700: #aeea00;
- 
-    --paper-yellow-50: #fffde7;
-    --paper-yellow-100: #fff9c4;
-    --paper-yellow-200: #fff59d;
-    --paper-yellow-300: #fff176;
-    --paper-yellow-400: #ffee58;
-    --paper-yellow-500: #ffeb3b;
-    --paper-yellow-600: #fdd835;
-    --paper-yellow-700: #fbc02d;
-    --paper-yellow-800: #f9a825;
-    --paper-yellow-900: #f57f17;
-    --paper-yellow-a100: #ffff8d;
-    --paper-yellow-a200: #ffff00;
-    --paper-yellow-a400: #ffea00;
-    --paper-yellow-a700: #ffd600;
- 
-    --paper-amber-50: #fff8e1;
-    --paper-amber-100: #ffecb3;
-    --paper-amber-200: #ffe082;
-    --paper-amber-300: #ffd54f;
-    --paper-amber-400: #ffca28;
-    --paper-amber-500: #ffc107;
-    --paper-amber-600: #ffb300;
-    --paper-amber-700: #ffa000;
-    --paper-amber-800: #ff8f00;
-    --paper-amber-900: #ff6f00;
-    --paper-amber-a100: #ffe57f;
-    --paper-amber-a200: #ffd740;
-    --paper-amber-a400: #ffc400;
-    --paper-amber-a700: #ffab00;
- 
-    --paper-orange-50: #fff3e0;
-    --paper-orange-100: #ffe0b2;
-    --paper-orange-200: #ffcc80;
-    --paper-orange-300: #ffb74d;
-    --paper-orange-400: #ffa726;
-    --paper-orange-500: #ff9800;
-    --paper-orange-600: #fb8c00;
-    --paper-orange-700: #f57c00;
-    --paper-orange-800: #ef6c00;
-    --paper-orange-900: #e65100;
-    --paper-orange-a100: #ffd180;
-    --paper-orange-a200: #ffab40;
-    --paper-orange-a400: #ff9100;
-    --paper-orange-a700: #ff6500;
- 
-    --paper-deep-orange-50: #fbe9e7;
-    --paper-deep-orange-100: #ffccbc;
-    --paper-deep-orange-200: #ffab91;
-    --paper-deep-orange-300: #ff8a65;
-    --paper-deep-orange-400: #ff7043;
-    --paper-deep-orange-500: #ff5722;
-    --paper-deep-orange-600: #f4511e;
-    --paper-deep-orange-700: #e64a19;
-    --paper-deep-orange-800: #d84315;
-    --paper-deep-orange-900: #bf360c;
-    --paper-deep-orange-a100: #ff9e80;
-    --paper-deep-orange-a200: #ff6e40;
-    --paper-deep-orange-a400: #ff3d00;
-    --paper-deep-orange-a700: #dd2c00;
- 
-    --paper-brown-50: #efebe9;
-    --paper-brown-100: #d7ccc8;
-    --paper-brown-200: #bcaaa4;
-    --paper-brown-300: #a1887f;
-    --paper-brown-400: #8d6e63;
-    --paper-brown-500: #795548;
-    --paper-brown-600: #6d4c41;
-    --paper-brown-700: #5d4037;
-    --paper-brown-800: #4e342e;
-    --paper-brown-900: #3e2723;
- 
-    --paper-grey-50: #fafafa;
-    --paper-grey-100: #f5f5f5;
-    --paper-grey-200: #eeeeee;
-    --paper-grey-300: #e0e0e0;
-    --paper-grey-400: #bdbdbd;
-    --paper-grey-500: #9e9e9e;
-    --paper-grey-600: #757575;
-    --paper-grey-700: #616161;
-    --paper-grey-800: #424242;
-    --paper-grey-900: #212121;
- 
-    --paper-blue-grey-50: #eceff1;
-    --paper-blue-grey-100: #cfd8dc;
-    --paper-blue-grey-200: #b0bec5;
-    --paper-blue-grey-300: #90a4ae;
-    --paper-blue-grey-400: #78909c;
-    --paper-blue-grey-500: #607d8b;
-    --paper-blue-grey-600: #546e7a;
-    --paper-blue-grey-700: #455a64;
-    --paper-blue-grey-800: #37474f;
-    --paper-blue-grey-900: #263238;
-
-    /* opacity for dark text on a light background */
-    --dark-divider-opacity: 0.12;
-    --dark-disabled-opacity: 0.38; /* or hint text or icon */
-    --dark-secondary-opacity: 0.54;
-    --dark-primary-opacity: 0.87;
-
-    /* opacity for light text on a dark background */
-    --light-divider-opacity: 0.12;
-    --light-disabled-opacity: 0.3; /* or hint text or icon */
-    --light-secondary-opacity: 0.7;
-    --light-primary-opacity: 1.0;
-
-  }
-
-</style>
-<!-- Taken from https://www.google.com/design/spec/style/color.html#color-ui-color-application -->
-
-<style is="custom-style">
-
-  :root {
-    /*
-     * You can use these generic variables in your elements for easy theming.
-     * For example, if all your elements use `--primary-text-color` as its main
-     * color, then switching from a light to a dark theme is just a matter of
-     * changing the value of `--primary-text-color` in your application.
-     */
-    --primary-text-color: var(--light-theme-text-color);
-    --primary-background-color: var(--light-theme-background-color);
-    --secondary-text-color: var(--light-theme-secondary-color);
-    --disabled-text-color: var(--light-theme-disabled-color);
-    --divider-color: var(--light-theme-divider-color);
-    --error-color: var(--paper-deep-orange-a700);
-
-    /*
-     * Primary and accent colors. Also see color.html for more colors.
-     */
-    --primary-color: var(--paper-indigo-500);
-    --light-primary-color: var(--paper-indigo-100);
-    --dark-primary-color: var(--paper-indigo-700);
-
-    --accent-color: var(--paper-pink-a200);
-    --light-accent-color: var(--paper-pink-a100);
-    --dark-accent-color: var(--paper-pink-a400);
-
-
-    /*
-     * Material Design Light background theme
-     */
-    --light-theme-background-color: #ffffff;
-    --light-theme-base-color: #000000;
-    --light-theme-text-color: var(--paper-grey-900);
-    --light-theme-secondary-color: #737373;  /* for secondary text and icons */
-    --light-theme-disabled-color: #9b9b9b;  /* disabled/hint text */
-    --light-theme-divider-color: #dbdbdb;
-
-    /*
-     * Material Design Dark background theme
-     */
-    --dark-theme-background-color: var(--paper-grey-900);
-    --dark-theme-base-color: #ffffff;
-    --dark-theme-text-color: #ffffff;
-    --dark-theme-secondary-color: #bcbcbc;  /* for secondary text and icons */
-    --dark-theme-disabled-color: #646464;  /* disabled/hint text */
-    --dark-theme-divider-color: #3c3c3c;
-
-    /*
-     * Deprecated values because of their confusing names.
-     */
-    --text-primary-color: var(--dark-theme-text-color);
-    --default-primary-color: var(--primary-color);
-
-  }
-
-</style>
-<!--
-Material design: [Floating Action Button](https://www.google.com/design/spec/components/buttons-floating-action-button.html)
-
-`paper-fab` is a floating action button. It contains an image placed in the center and
-comes in two sizes: regular size and a smaller size by applying the attribute `mini`. When
-the user touches the button, a ripple effect emanates from the center of the button.
-
-You may import `iron-icons` to use with this element, or provide a URL to a custom icon.
-See `iron-iconset` for more information about how to use a custom icon set.
-
-Example:
-
-    <link href="path/to/iron-icons/iron-icons.html" rel="import">
-
-    <paper-fab icon="add"></paper-fab>
-    <paper-fab mini icon="favorite"></paper-fab>
-    <paper-fab src="star.png"></paper-fab>
-
-
-### Styling
-
-The following custom properties and mixins are available for styling:
-
-Custom property | Description | Default
-----------------|-------------|----------
-`--paper-fab-background` | The background color of the button | `--accent-color`
-`--paper-fab-keyboard-focus-background` | The background color of the button when focused | `--paper-pink-900`
-`--paper-fab-disabled-background` | The background color of the button when it's disabled | `--paper-grey-300`
-`--paper-fab-disabled-text` | The text color of the button when it's disabled | `--paper-grey-500`
-`--paper-fab` | Mixin applied to the button | `{}`
-`--paper-fab-mini` | Mixin applied to a mini button | `{}`
-`--paper-fab-disabled` | Mixin applied to a disabled button | `{}`
-`--paper-fab-iron-icon` | Mixin applied to the iron-icon within the button | `{}`
-
-@group Paper Elements
-@demo demo/index.html
--->
-
-<script>
-
-  /**
-   * `Polymer.PaperInkyFocusBehavior` implements a ripple when the element has keyboard focus.
-   *
-   * @polymerBehavior Polymer.PaperInkyFocusBehavior
-   */
-  Polymer.PaperInkyFocusBehaviorImpl = {
-
-    observers: [
-      '_focusedChanged(receivedFocusFromKeyboard)'
-    ],
-
-    _focusedChanged: function(receivedFocusFromKeyboard) {
-      if (receivedFocusFromKeyboard) {
-        this.ensureRipple();
-      }
-      if (this.hasRipple()) {
-        this._ripple.holdDown = receivedFocusFromKeyboard;
-      }
-    },
-
-    _createRipple: function() {
-      var ripple = Polymer.PaperRippleBehavior._createRipple();
-      ripple.id = 'ink';
-      ripple.setAttribute('center', '');
-      ripple.classList.add('circle');
-      return ripple;
-    }
-
-  };
-
-  /** @polymerBehavior Polymer.PaperInkyFocusBehavior */
-  Polymer.PaperInkyFocusBehavior = [
-    Polymer.IronButtonState,
-    Polymer.IronControlState,
-    Polymer.PaperRippleBehavior,
-    Polymer.PaperInkyFocusBehaviorImpl
-  ];
-
-</script>
-<!--
-Material design: [Icon toggles](https://www.google.com/design/spec/components/buttons.html#buttons-toggle-buttons)
-
-`paper-icon-button` is a button with an image placed at the center. When the user touches
-the button, a ripple effect emanates from the center of the button.
-
-`paper-icon-button` includes a default icon set.  Use `icon` to specify which icon
-from the icon set to use.
-
-    <paper-icon-button icon="menu"></paper-icon-button>
-
-See [`iron-iconset`](#iron-iconset) for more information about
-how to use a custom icon set.
-
-Example:
-
-    <link href="path/to/iron-icons/iron-icons.html" rel="import">
-
-    <paper-icon-button icon="favorite"></paper-icon-button>
-    <paper-icon-button src="star.png"></paper-icon-button>
-
-### Styling
-
-Style the button with CSS as you would a normal DOM element. If you are using the icons
-provided by `iron-icons`, they will inherit the foreground color of the button.
-
-    /* make a red "favorite" button */
-    <paper-icon-button icon="favorite" style="color: red;"></paper-icon-button>
-
-By default, the ripple is the same color as the foreground at 25% opacity. You may
-customize the color using the `--paper-icon-button-ink-color` custom property.
-
-The following custom properties and mixins are available for styling:
-
-Custom property | Description | Default
-----------------|-------------|----------
-`--paper-icon-button-disabled-text` | The color of the disabled button | `--disabled-text-color`
-`--paper-icon-button-ink-color` | Selected/focus ripple color | `--primary-text-color`
-`--paper-icon-button` | Mixin for a button | `{}`
-`--paper-icon-button-disabled` | Mixin for a disabled button | `{}`
-`--paper-icon-button-hover` | Mixin for button on hover | `{}`
-
-@group Paper Elements
-@element paper-icon-button
-@demo demo/index.html
--->
-
-<!--
-`iron-media-query` can be used to data bind to a CSS media query.
-The `query` property is a bare CSS media query.
-The `query-matches` property is a boolean representing whether the page matches that media query.
-
-Example:
-
-    <iron-media-query query="(min-width: 600px)" query-matches="{{queryMatches}}"></iron-media-query>
-
-@group Iron Elements
-@demo demo/index.html
-@hero hero.svg
-@element iron-media-query
--->
-
-<script>
-
-  Polymer({
-
-    is: 'iron-media-query',
-
-    properties: {
-
-      /**
-       * The Boolean return value of the media query.
-       */
-      queryMatches: {
-        type: Boolean,
-        value: false,
-        readOnly: true,
-        notify: true
-      },
-
-      /**
-       * The CSS media query to evaluate.
-       */
-      query: {
-        type: String,
-        observer: 'queryChanged'
-      },
-
-      /**
-       * If true, the query attribute is assumed to be a complete media query
-       * string rather than a single media feature.
-       */
-      full: {
-        type: Boolean,
-        value: false
-      },
-
-      /**
-       * @type {function(MediaQueryList)}
-       */
-      _boundMQHandler: {
-        value: function() {
-          return this.queryHandler.bind(this);
-        }
-      },
-
-      /**
-       * @type {MediaQueryList}
-       */
-      _mq: {
-        value: null
-      }
-    },
-
-    attached: function() {
-      this.style.display = 'none';
-      this.queryChanged();
-    },
-
-    detached: function() {
-      this._remove();
-    },
-
-    _add: function() {
-      if (this._mq) {
-        this._mq.addListener(this._boundMQHandler);
-      }
-    },
-
-    _remove: function() {
-      if (this._mq) {
-        this._mq.removeListener(this._boundMQHandler);
-      }
-      this._mq = null;
-    },
-
-    queryChanged: function() {
-      this._remove();
-      var query = this.query;
-      if (!query) {
-        return;
-      }
-      if (!this.full && query[0] !== '(') {
-        query = '(' + query + ')';
-      }
-      this._mq = window.matchMedia(query);
-      this._add();
-      this.queryHandler(this._mq);
-    },
-
-    queryHandler: function(mq) {
-      this._setQueryMatches(mq.matches);
-    }
-
-  });
-
-</script>
-<!--
-app-drawer is a navigation drawer that can slide in from the left or right.
-
-Example:
-
-Align the drawer at the start, which is left in LTR layouts (default):
-
-```html
-<app-drawer opened></app-drawer>
-```
-
-Align the drawer at the end:
-
-```html
-<app-drawer align="end" opened></app-drawer>
-```
-
-To make the contents of the drawer scrollable, create a wrapper for the scroll
-content, and apply height and overflow styles to it.
-
-```html
-<app-drawer>
-  <div style="height: 100%; overflow: auto;"></div>
-</app-drawer>
-```
-
-### Styling
-
-Custom property                  | Description                            | Default
----------------------------------|----------------------------------------|--------------------
-`--app-drawer-width`             | Width of the drawer                    | 256px
-`--app-drawer-content-container` | Mixin for the drawer content container | {}
-`--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
-
-@demo app-drawer/demo.html
--->
-
-<!--
-app-drawer-layout is a wrapper element that positions an app-drawer and other content. When
-the viewport width is smaller than `responsiveWidth`, this element changes to narrow layout.
-In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
-in/out to hide/reveal the main content.
-
-By default the drawer is aligned to the start, which is left in LTR layouts:
-
-```html
-<app-drawer-layout>
-  <app-drawer>
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <div>
-    <!\-\- main content \-\->
-  </div>
-</app-drawer-layout>
-```
-
-Align the drawer at the end:
-
-```html
-<app-drawer-layout>
-  <app-drawer align="end">
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <div>
-    <!\-\- main content \-\->
-  </div>
-</app-drawer-layout>
-```
-
-With an app-header-layout:
-
-```html
-<app-drawer-layout>
-  <app-drawer>
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <app-header-layout>
-    <app-header>
-      <app-toolbar>
-        <div title>App name</div>
-      </app-toolbar>
-    </app-header>
-
-    <!\-\- main content \-\->
-
-  </app-header-layout>
-</app-drawer-layout>
-```
-
-### Styling
-
-Custom property                          | Description                          | Default
------------------------------------------|--------------------------------------|---------
-`--app-drawer-layout-content-transition` | Transition for the content container | none
-
-@demo app-drawer-layout/demo.html
--->
-
-<script>
-
-(function() {
-  function interpolate(progress, points, fn, ctx) {
-    fn.apply(ctx, points.map(function(point) {
-      return point[0] + (point[1] - point[0]) * progress;
-    }));
-  }
-
-  Polymer.AppScrollEffects = {};
-
-  /**
-   * While scrolling down, fade in the rear background layer and fade out the front background
-   * layer (opacity interpolated based on scroll position).
-   */
-  Polymer.AppScrollEffects['blend-background'] = {
-    setUp: function setUp() {
-      this.$.backgroundFrontLayer.style.willChange = 'opacity';
-      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
-      this.$.backgroundRearLayer.style.willChange = 'opacity';
-      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
-      this.$.backgroundRearLayer.style.opacity = 0;
-    },
-    run: function run(p, y) {
-      this.$.backgroundFrontLayer.style.opacity = 1 - p;
-      this.$.backgroundRearLayer.style.opacity = p;
-    }
-  };
-
-  /**
-   * Upon scrolling past a threshold, fade in the rear background layer and fade out the front
-   * background layer (opacity CSS transitioned over time).
-   */
-  Polymer.AppScrollEffects['fade-background'] = {
-    setUp: function setUp(config) {
-      var duration = config.duration || '0.5s';
-      this.$.backgroundFrontLayer.style.willChange = 'opacity';
-      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
-      this.$.backgroundFrontLayer.style.transitionProperty = 'opacity';
-      this.$.backgroundFrontLayer.style.transitionDuration = duration;
-      this.$.backgroundRearLayer.style.willChange = 'opacity';
-      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
-      this.$.backgroundRearLayer.style.transitionProperty = 'opacity';
-      this.$.backgroundRearLayer.style.transitionDuration = duration;
-    },
-    run: function run(p, y) {
-      if (p >= 1) {
-        this.$.backgroundFrontLayer.style.opacity = 0;
-        this.$.backgroundRearLayer.style.opacity = 1;
-      } else {
-        this.$.backgroundFrontLayer.style.opacity = 1;
-        this.$.backgroundRearLayer.style.opacity = 0;
-      }
-    }
-  };
-
-  /**
-   * Vertically translate the background based on a factor of the scroll position.
-   */
-  Polymer.AppScrollEffects['parallax-background'] = {
-    setUp: function setUp(config) {
-      var scalar = parseFloat(config.scalar);
-      this._deltaBg = this.$.backgroundFrontLayer.offsetHeight - this.$.background.offsetHeight;
-      if (this._deltaBg === 0) {
-        if (isNaN(scalar)) {
-          scalar = 0.8;
-        }
-        this._deltaBg = this._deltaHeight * scalar;
-      } else {
-        if (isNaN(scalar)) {
-          scalar = 1;
-        }
-        this._deltaBg = this._deltaBg * scalar;
-      }
-    },
-    tearDown: function() {
-      delete this._deltaBg;
-    },
-    run: function run(p, y) {
-      this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundFrontLayer);
-      if (this.$.backgroundRearLayer) {
-        this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundRearLayer);
-      }
-    }
-  };
-
-  /**
-   * Transform the font size of a designated title element between two values based on the scroll
-   * position.
-   */
-  Polymer.AppScrollEffects['resize-title'] = {
-    setUp: function setUp() {
-      var title = Polymer.dom(this).querySelector('[title]');
-      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
-
-      if (!condensedTitle) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
-        return false;
-      }
-      if (!title) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
-        return false;
-      }
-
-      condensedTitle.style.willChange = 'opacity';
-      title.style.willChange = 'opacity';
-
-      condensedTitle.style.webkitTransform = 'translateZ(0)';
-      title.style.webkitTransform = 'translateZ(0)';
-
-      var titleClientRect = title.getBoundingClientRect();
-      var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
-      var fx = {};
-
-      fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
-          parseInt(window.getComputedStyle(title)['font-size'], 10);
-      fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
-      fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
-      fx.condensedTitle = condensedTitle;
-      fx.title = title;
-
-      this._fxResizeTitle = fx;
-    },
-    tearDown: function tearDown() {
-      delete this._fxResizeTitle;
-    },
-    run: function run(p, y) {
-      var fx = this._fxResizeTitle;
-      if (!this.condenses) {
-        y = 0;
-      }
-      if (p >= 1) {
-        fx.title.style.opacity = 0;
-        fx.condensedTitle.style.opacity = 1;
-      } else {
-        fx.title.style.opacity = 1;
-        fx.condensedTitle.style.opacity = 0;
-      }
-      interpolate(Math.min(1, p), [
-        [1,  fx.scale],
-        [0, -fx.titleDX],
-        [y, y-fx.titleDY]
-      ],
-      function(scale, translateX, translateY) {
-        this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
-            'scale3d(' + scale + ', ' + scale + ', 1)',
-            fx.title);
-      }, this);
-    }
-  };
-
-  /**
-   * Upon scrolling past a threshold, CSS transition the font size of a designated title element
-   * between two values.
-   */
-  Polymer.AppScrollEffects['resize-snapped-title'] = {
-    setUp: function setUp(config) {
-      var title = Polymer.dom(this).querySelector('[title]');
-      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
-      var duration = config.duration || '0.2s';
-      var fx = {};
-
-      if (!condensedTitle) {
-        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `condensed-title`'));
-        return false;
-      }
-      if (!title) {
-        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `title`'));
-        return false;
-      }
-
-      title.style.transitionProperty = 'opacity';
-      title.style.transitionDuration = duration;
-      condensedTitle.style.transitionProperty = 'opacity';
-      condensedTitle.style.transitionDuration = duration;
-
-      fx.condensedTitle = condensedTitle;
-      fx.title = title;
-      this._fxResizeSnappedTitle = fx;
-    },
-    tearDown: function tearDown() {
-      var fx = this._fxResizeSnappedTitle;
-      fx.title.style.transition = '';
-      fx.condensedTitle.style.transition = '';
-      delete this._fxResizeSnappedTitle;
-    },
-    run: function run(p, y) {
-      var fx = this._fxResizeSnappedTitle;
-      if (p > 0) {
-        fx.title.style.opacity = 0;
-        fx.condensedTitle.style.opacity = 1;
-      } else {
-        fx.title.style.opacity = 1;
-        fx.condensedTitle.style.opacity = 0;
-      }
-    }
-  };
-
-  /**
-   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
-   * between the element and the content underneath.
-   */
-  Polymer.AppScrollEffects['waterfall'] = {
-    run: function run(p, y) {
-      this.shadow = this.isOnScreen() && this.isContentBelow();
-    }
-  };
-
-  /**
-   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
-   */
-  Polymer.AppScrollEffects['material'] = {
-    setUp: function() {
-      this.effects = 'waterfall resize-title blend-background parallax-background';
-      return false;
-    }
-  };
-
-})();
-
-</script>
-<script>
-
-/**
- * `Polymer.AppCustomScrollerBehavior` allows an element to respond to scroll events from a
- * designated scroller (either window or another element).
- *
- * Elements that consume this behavior can override the `_scrollHandler`
- * method to add logic on the scroll event.
- *
- * @polymerBehavior
- */
-Polymer.AppCustomScrollerBehavior = (function() {
-
-  return {
-
-    properties: {
-
-      /**
-       * Specifies the element that will handle the scroll event
-       * on the behalf of the current element. This is typically a reference to an `HTMLElement`,
-       * but there are a few more posibilities:
-       *
-       * ### CSS Selectors
-       * This property can also accept a string containing one CSS selector to an element
-       * accessible within the current scope. e.g.
-       *
-       *```html
-       * <div id="scrollingRegion" style="overflow-y: auto;">
-       *  <app-header scroller="#scrollingRegion">
-       *  </app-header>
-       * </div>
-       *```
-       * In this case, `scroller` will point to the outer div element. Alternatively, 
-       * you can set the property programatically:
-       *
-       *```js
-       * appHeader.scroller = document.querySelector("#scrollingRegion");
-       *```
-       *
-       * ### Window (default)
-       * The scroller property can also point to `window` to use . e.g.
-       *```html
-       * <app-header scroller="window"></app-header>
-       *```
-       * Alternatively, you can set the property programatically:
-       *
-       *```js
-       * appHeader.scroller = window;
-       *```
-       */
-      scroller: {
-        type: Object,
-        value: window,
-        observer: '_scrollerChanged'
-      }
-    },
-
-    _scrollHandler: function noop() {},
-
-    _scrollerChanged: function(scroller, old) {
-      this._boundScrollHandler = this._boundScrollHandler || this._scrollHandler.bind(this);
-
-      if (scroller) {
-        // sugar for the DOM
-        if (typeof scroller === 'string') {
-          if (scroller === 'window') {
-            this.scroller = window;
-          } else {
-            var ownerRoot = Polymer.dom(this).getOwnerRoot();
-            this.scroller = (ownerRoot && ownerRoot.$$) ? ownerRoot.$$(scroller) : Polymer.dom(null).querySelector(scroller);
-          }
-        } else {
-          scroller.addEventListener('scroll', this._boundScrollHandler);
-        }
-      }
-      if (old && old.removeEventListener) {
-        old.removeEventListener('scroll', this._boundScrollHandler);
-      }
-    },
-
-   /**
-    * Gets the number of pixels that the content of an element is scrolled upward.
-    *
-    * @type {number}
-    */
-    get _scrollTop() {
-      if (this.scroller) {
-        return this.scroller === window ? window.pageYOffset : this.scroller.scrollTop;
-      }
-      return 0;
-    },
-
-   /**
-    * Gets the number of pixels that the content of an element is scrolled to the left.
-    *
-    * @type {number}
-    */
-    get _scrollLeft() {
-      if (this.scroller) {
-        return this.scroller === window ? window.pageXOffset : this.scroller.scrollLeft;
-      }
-      return 0;
-    },
-
-    /**
-     * Sets the number of pixels that the content of an element is scrolled upward.
-     *
-     * @type {number}
-     */
-    set _scrollTop(top) {
-      if (this.scroller === window) {
-        window.scrollTo(window.pageXOffset, top);
-      } else if (this.scroller) {
-        this.scroller.scrollTop = top;
-      }
-    },
-
-    /**
-     * Sets the number of pixels that the content of an element is scrolled to the left.
-     *
-     * @type {number}
-     */
-    set _scrollLeft(left) {
-      if (this.scroller === window) {
-        window.scrollTo(left, window.pageYOffset);
-      } else if (this.scroller) {
-        this.scroller.scrollLeft = left;
-      }
-    },
-
-    /**
-     * Scrolls the content to a particular place.
-     *
-     * @method scroll
-     * @param {number} top The top position
-     * @param {number} left The left position
-     */
-    scroll: function(top, left) {
-       if (this.scroller === window) {
-        window.scrollTo(top, left);
-      } else if (this.scroller) {
-        this.scroller.scrollTop = top;
-        this.scroller.scrollLeft = left;
-      }
-    }
-
-  };
-
-})();
-</script>
-
-<script>
-  /**
-   * `Polymer.AppScrollEffectsBehavior` provides an interface that allows to consume scrolls events.
-   * Effects are installed in the `Polymer.AppScrollEffects` namescape.
-   *
-   * A few effects are defined in `app-scroll-effects.html`, but, by default, no effect is imported.
-   * Thus, users need to explicitly import the dependency.
-   *
-   * Elements that consume this behavior are required to override the folllowing methods:
-   *
-   * * `_updateScrollState`
-   * * `isOnScreen`
-   * * `isContentBelow`
-   *
-   * @polymerBehavior
-   */
-  Polymer.AppScrollEffectsBehavior = [
-    Polymer.AppCustomScrollerBehavior,
-   {
-
-    properties: {
-
-      /**
-       * A space-separated list of the effects names that will be triggered when the user scrolls.
-       * e.g. `waterfall parallax-background` installs the `waterfall` and `parallax-background`.
-       */
-      effects: {
-        type: String,
-        value: ''
-      },
-
-      /**
-       * An object that configurates the effects installed via the `effects` property. e.g.
-       * ```js
-       *  element.effectsConfig = {
-       *   "blend-background": {
-       *     "startsAt": 0.5
-       *   }
-       * };
-       * ```
-       * Every effect has at least two config properties: `startsAt` and `endsAt`.
-       * These properties indicate when the event should start and end respectively
-       * and relative to the overall element progress. So for example, if `blend-background`
-       * starts at `0.5`, the effect will only start once the current element reaches 0.5
-       * of its progress. In this context, the progress is a value in the range of `[0, 1]`
-       * that indicates where this element is on the screen relative to the viewport.
-       */
-      effectsConfig: {
-        type: Object,
-        value: function() {
-          return {};
-        }
-      },
-
-      /**
-       * Disables CSS transitions and scroll effects on the element.
-       */
-      disabled: {
-        type: Boolean,
-        reflectToAttribute: true,
-        value: false
-      }
-    },
-
-    observers: [
-      '_effectsChanged(effects, effectsConfig)'
-    ],
-
-    /**
-     * Updates the scroll state. This method should be overridden
-     * by the consumer of this behavior.
-     *
-     * @abstract
-     * @method _updateScrollState
-     */
-    _updateScrollState: function() {},
-
-    /**
-     * Returns true if the current element is on the screen.
-     * That is, visible in the current viewport. This method should be
-     * overridden by the consumer of this behavior.
-     *
-     * @abstract
-     * @method isOnScreen
-     * @return {boolean}
-     */
-    isOnScreen: function() {
-      return false;
-    },
-
-    /**
-     * Returns true if there's content below the current element. This method
-     * should be overridden by the consumer of this behavior.
-     *
-     * @abstract
-     * @method isContentBelow
-     * @return {boolean}
-     */
-    isContentBelow: function() {
-      return false;
-    },
-
-    /**
-     * List of effects handlers that will take place during scroll.
-     *
-     * @type {Array<Function>}
-     */
-    _effectsRunFn: null,
-
-    /**
-     * List of the effects definitions installed via the `effects` property.
-     *
-     * @type {Array<Object>}
-     */
-    _effects: null,
-
-    /**
-     * The clamped value of `_scrollTop`.
-     * @type number
-     */
-    get _clampedScrollTop() {
-      return Math.max(0, this._scrollTop);
-    },
-
-    created: function() {
-      this._effectsRunFn = [];
-      this._effects = [];
-    },
-
-    detached: function() {
-      this._tearDownEffects();
-    },
-
-    /**
-     * Creates an effect object from an effect name and configuration that can be used to run
-     * effects programmatically.
-     *
-     * @method createEffect
-     * @param {string} effectName The name of an effect defined in `Polymer.AppScrollEffects`
-     * @param {Object=} effectConfig The effect config object if the effect accepts config
-     *   values. (Optional)
-     * @return {Object} The effect object. This object has the following interface:
-     *
-     *  * `obj.setUp()`, Sets up the requirements for the effect.
-     *       This function is called automatically before the `effect` function returns.
-     *  * `obj.run(progress, y)`, Runs the effect given a `progress`.
-     *  * `obj.tearDown()`, Cleans up any DOM nodes or element references used by the effect.
-     *
-     * Example:
-     * ```js
-     * var parallax = obj.createEffect('parallax-background');
-     * // runs the effect
-     * parallax.run(0.5, 0);
-     * ```
-     */
-    createEffect: function(effectName, effectConfig) {
-      if (!Polymer.AppScrollEffects) {
-        throw new ReferenceError('undefined Polymer.AppScrollEffects');
-        return;
-      }
-      var effectDef = Polymer.AppScrollEffects[effectName];
-      if (!effectDef) {
-        throw new ReferenceError('undefined effect `' + effectName + '`');
-        return;
-      }
-      var prop = this._boundEffect(effectDef, effectConfig || {});
-      prop.setUp();
-      return prop;
-    },
-
-    /**
-     * Called when `effects` or `effectsConfig` changes.
-     */
-    _effectsChanged: function(effects, effectsConfig) {
-      this._tearDownEffects();
-
-      if (effects === '') {
-        return;
-      }
-      effects.split(' ').forEach(function(effectName) {
-        var effectDef;
-        if (effectName !== '') {
-          if ((effectDef = Polymer.AppScrollEffects[effectName])) {
-            this._effects.push(this._boundEffect(effectDef, effectsConfig[effectName]));
-          } else {
-            this._warn(this._logf('_effectsChanged', 'undefined effect `', effectName, '`'));
-          }
-        }
-      }, this);
-
-      this._setUpEffect();
-    },
-
-    /**
-     * Forces layout
-     */
-    _layoutIfDirty: function() {
-      return this.offsetWidth;
-    },
-
-    /**
-     * Returns an effect object bound to the current context.
-     *
-     * @param {Object}
-     * @param {Object=} The effect config object if the effect accepts config values. (Optional)
-     */
-    _boundEffect: function(effectDef, effectsConfig) {
-      effectsConfig = effectsConfig || {};
-      var startsAt = parseFloat(effectsConfig.startsAt || 0);
-      var endsAt = parseFloat(effectsConfig.endsAt || 1);
-      var deltaS = endsAt - startsAt;
-      var noop = Function();
-      // fast path if possible
-      var runFn = (startsAt === 0 && endsAt === 1) ? effectDef.run :
-        function(progress, y) {
-          effectDef.run.call(this,
-              Math.max(0, (progress - startsAt) / deltaS), y);
-        };
-      return {
-        setUp: effectDef.setUp ? effectDef.setUp.bind(this, effectsConfig) : noop,
-        run: effectDef.run ? runFn.bind(this) : noop,
-        tearDown: effectDef.tearDown ? effectDef.tearDown.bind(this) : noop
-      };
-    },
-
-    /**
-     * Sets up the effects.
-     */
-    _setUpEffect: function() {
-      if (this.isAttached) {
-        this._effectsRunFn = [];
-        this._effects.forEach(function(effectDef) {
-          // install the effect only if no error was reported
-          if (effectDef.setUp() !== false) {
-            this._effectsRunFn.push(effectDef.run);
-          }
-        }, this);
-      }
-    },
-
-    /**
-     * Tears down the effects.
-     */
-    _tearDownEffects: function() {
-      this._effects.forEach(function(effectDef) {
-        effectDef.tearDown();
-      });
-      this._effectsRunFn = [];
-      this._effects = [];
-    },
-
-    /**
-     * Runs the effects.
-     *
-     * @param {number} The progress
-     * @param {number} The top position of the current element relative to the viewport.
-     */
-    _runEffects: function(p, y) {
-      this._effectsRunFn.forEach(function(run) {
-        run(p, y);
-      });
-    },
-
-    /**
-     * Overrides the `_scrollHandler`.
-     */
-    _scrollHandler: function() {
-      if (!this.disabled) {
-        this._updateScrollState(this._clampedScrollTop);
-      }
-    }
-  }];
-
-  /**
-   * Defines the namespace for the effects
-   */
-  Polymer.AppScrollEffects = Polymer.AppScrollEffects || {};
-</script>
-<!--
-app-header is container element for app-toolbars at the top of the screen that can have scroll
-effects - visual effects based on scroll position. By default, an app-header moves away from
-the viewport when scrolling down and if using `reveals`, the header slides back when scrolling
-back up. For example,
-
-```html
-<app-header reveals>
-  <app-toolbar>
-    <div title>App name</div>
-  </app-toolbar>
-</app-header>
-```
-
-app-header can also condense when scrolling down. To achieve this behavior, the header
-must have a larger height than the first toolbar in the light DOM. For example,
-
-```html
-<app-header style="height: 96px;" condenses fixed>
-  <app-toolbar style="height: 64px;">
-    <div title>App name</div>
-  </app-toolbar>
-</app-header>
-```
-
-Notice that when the header is condensed its height is `64px`, whereas the height is 96px
-if the user scrolls back up to the top.
-
-## Scroll effects
-The following effects can be installed via the `effects` property:
-
-* **blend-background**
-While scrolling down, fade in the rear background layer and fade out the front 
-background layer (opacity interpolated based on scroll position).
-
-* **fade-background**
-Upon scrolling past a threshold, fade in the rear background layer and fade out
-the front background layer (opacity CSS transitioned over time).
-
-* **parallax-background**
-Vertically translate the background based on a factor of the scroll position.
-
-* **resize-title** 
-Transform the font size of a designated title element between two values based 
-on the scroll position.
-
-* **resize-snapped-title**
-Upon scrolling past a threshold, CSS transition the font size of a designated
-title element between two values.
-
-* **waterfall**
-Toggles the shadow property in app-header when content is scrolled to create
-a sense of depth between the element and the content underneath.
-
-* **material**
-Shorthand for the waterfall, resize-title, blend-background, and parallax-background 
-effects.
-
-## Styling
-
-Mixin | Description | Default
-----------------|-------------|----------
-`--app-header-background-front-layer` | Applies to the front layer of the background | {}
-`--app-header-background-rear-layer` | Applies to the rear layer of the background | {}
-
-@demo app-header/demo/demo1.html
-@demo app-header/demo/demo2.html
-@demo app-header/demo/demo3.html
-@demo app-header/demo/music.html
-@demo app-header/demo/notes.html
-@demo app-header/demo/pesto.html
-@demo app-header/demo/give.html
-
--->
-
-<!--
-app-header-layout is a wrapper element that positions an app-header and other content. This
-element uses the document scroll by default, but it can also define its own scrolling region.
-
-Using the document scroll:
-
-```html
-<app-header-layout>
-  <app-header fixed condenses effects="waterfall">
-    <app-toolbar>
-      <div title>App name</div>
-    </app-toolbar>
-  </app-header>
-  <div>
-    <!\-\- content goes here \-\->
-  </div>
-</app-header-layout>
-```
-
-Using an own scrolling region:
-
-```html
-<app-header-layout has-scrolling-region style="width: 300px; height: 400px;">
-  <app-header fixed condenses effects="waterfall">
-    <app-toolbar>
-      <div title>App name</div>
-    </app-toolbar>
-  </app-header>
-  <div>
-    <!\-\- content goes here \-\->
-  </div>
-</app-header-layout>
-```
-
-@demo app-header-layout/demo1.html
-@demo app-header-layout/demo2.html
--->
-
-<!--
-app-toolbar is a horizontal toolbar containing items that can be used for
-label, navigation, search and actions.
-
-Example:
-
-Add a title to the toolbar.
-
-```html
-<app-toolbar>
-  <div title>App name</div>
-</app-toolbar>
-```
-
-Add a button to the left and right side of the toolbar.
-
-```html
-<app-toolbar>
-  <paper-icon-button icon="menu"></paper-icon-button>
-  <div title>App name</div>
-  <paper-icon-button icon="search"></paper-icon-button>
-</app-toolbar>
-```
-
-You can use the attributes `top-item` or `bottom-item` to completely fit an element
-to the top or bottom of the toolbar respectively.
-
-### Styling
-
-Custom property              | Description                  | Default
------------------------------|------------------------------|-----------------------
-`--app-toolbar-font-size`    | Toolbar font size            | 20px
-
-@demo app-toolbar/demo.html
--->
-
-<!--
-app-scrollpos-control is a manager for saving and restoring the scroll position when multiple
-pages are sharing the same document scroller.
-
-Example:
-
-```html
-<app-scrollpos-control selected="{{page}}"></app-scrollpos-control>
-
-<app-drawer-layout>
-
-  <app-drawer>
-    <paper-menu selected="{{page}}">
-      <paper-item>Home</paper-item>
-      <paper-item>About</paper-item>
-      <paper-item>Schedule</paper-item>
-      <paper-item>Account</paper-item>
-    </paper-menu>
-  </app-drawer>
-
-  <div>
-    <app-toolbar>
-      <paper-icon-button icon="menu" drawer-toggle></paper-icon-button>
-    </app-toolbar>
-    <iron-pages selected="{{page}}">
-      <sample-content size="100"></sample-content>
-      <sample-content size="100"></sample-content>
-      <sample-content size="100"></sample-content>
-      <sample-content size="100"></sample-content>
-    </iron-pages>
-  </div>
-
-</app-drawer-layout>
-```
-
-@demo app-scrollpos-control/demo.html
--->
-
-<script>
-  /**
-   * The `iron-iconset-svg` element allows users to define their own icon sets
-   * that contain svg icons. The svg icon elements should be children of the
-   * `iron-iconset-svg` element. Multiple icons should be given distinct id's.
-   *
-   * Using svg elements to create icons has a few advantages over traditional
-   * bitmap graphics like jpg or png. Icons that use svg are vector based so
-   * they are resolution independent and should look good on any device. They
-   * are stylable via css. Icons can be themed, colorized, and even animated.
-   *
-   * Example:
-   *
-   *     <iron-iconset-svg name="my-svg-icons" size="24">
-   *       <svg>
-   *         <defs>
-   *           <g id="shape">
-   *             <rect x="12" y="0" width="12" height="24" />
-   *             <circle cx="12" cy="12" r="12" />
-   *           </g>
-   *         </defs>
-   *       </svg>
-   *     </iron-iconset-svg>
-   *
-   * This will automatically register the icon set "my-svg-icons" to the iconset
-   * database.  To use these icons from within another element, make a
-   * `iron-iconset` element and call the `byId` method
-   * to retrieve a given iconset. To apply a particular icon inside an
-   * element use the `applyIcon` method. For example:
-   *
-   *     iconset.applyIcon(iconNode, 'car');
-   *
-   * @element iron-iconset-svg
-   * @demo demo/index.html
-   * @implements {Polymer.Iconset}
-   */
-  Polymer({
-    is: 'iron-iconset-svg',
-
-    properties: {
-
-      /**
-       * The name of the iconset.
-       */
-      name: {
-        type: String,
-        observer: '_nameChanged'
-      },
-
-      /**
-       * The size of an individual icon. Note that icons must be square.
-       */
-      size: {
-        type: Number,
-        value: 24
-      }
-
-    },
-
-    attached: function() {
-      this.style.display = 'none';
-    },
-
-    /**
-     * Construct an array of all icon names in this iconset.
-     *
-     * @return {!Array} Array of icon names.
-     */
-    getIconNames: function() {
-      this._icons = this._createIconMap();
-      return Object.keys(this._icons).map(function(n) {
-        return this.name + ':' + n;
-      }, this);
-    },
-
-    /**
-     * Applies an icon to the given element.
-     *
-     * An svg icon is prepended to the element's shadowRoot if it exists,
-     * otherwise to the element itself.
-     *
-     * @method applyIcon
-     * @param {Element} element Element to which the icon is applied.
-     * @param {string} iconName Name of the icon to apply.
-     * @return {?Element} The svg element which renders the icon.
-     */
-    applyIcon: function(element, iconName) {
-      // insert svg element into shadow root, if it exists
-      element = element.root || element;
-      // Remove old svg element
-      this.removeIcon(element);
-      // install new svg element
-      var svg = this._cloneIcon(iconName);
-      if (svg) {
-        var pde = Polymer.dom(element);
-        pde.insertBefore(svg, pde.childNodes[0]);
-        return element._svgIcon = svg;
-      }
-      return null;
-    },
-
-    /**
-     * Remove an icon from the given element by undoing the changes effected
-     * by `applyIcon`.
-     *
-     * @param {Element} element The element from which the icon is removed.
-     */
-    removeIcon: function(element) {
-      // Remove old svg element
-      if (element._svgIcon) {
-        Polymer.dom(element).removeChild(element._svgIcon);
-        element._svgIcon = null;
-      }
-    },
-
-    /**
-     *
-     * When name is changed, register iconset metadata
-     *
-     */
-    _nameChanged: function() {
-      new Polymer.IronMeta({type: 'iconset', key: this.name, value: this});
-      this.async(function() {
-        this.fire('iron-iconset-added', this, {node: window});
-      });
-    },
-
-    /**
-     * Create a map of child SVG elements by id.
-     *
-     * @return {!Object} Map of id's to SVG elements.
-     */
-    _createIconMap: function() {
-      // Objects chained to Object.prototype (`{}`) have members. Specifically,
-      // on FF there is a `watch` method that confuses the icon map, so we
-      // need to use a null-based object here.
-      var icons = Object.create(null);
-      Polymer.dom(this).querySelectorAll('[id]')
-        .forEach(function(icon) {
-          icons[icon.id] = icon;
-        });
-      return icons;
-    },
-
-    /**
-     * Produce installable clone of the SVG element matching `id` in this
-     * iconset, or `undefined` if there is no matching element.
-     *
-     * @return {Element} Returns an installable clone of the SVG element
-     * matching `id`.
-     */
-    _cloneIcon: function(id) {
-      // create the icon map on-demand, since the iconset itself has no discrete
-      // signal to know when it's children are fully parsed
-      this._icons = this._icons || this._createIconMap();
-      return this._prepareSvgClone(this._icons[id], this.size);
-    },
-
-    /**
-     * @param {Element} sourceSvg
-     * @param {number} size
-     * @return {Element}
-     */
-    _prepareSvgClone: function(sourceSvg, size) {
-      if (sourceSvg) {
-        var content = sourceSvg.cloneNode(true),
-            svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'),
-            viewBox = content.getAttribute('viewBox') || '0 0 ' + size + ' ' + size;
-        svg.setAttribute('viewBox', viewBox);
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-        // TODO(dfreedm): `pointer-events: none` works around https://crbug.com/370136
-        // TODO(sjmiles): inline style may not be ideal, but avoids requiring a shadow-root
-        svg.style.cssText = 'pointer-events: none; display: block; width: 100%; height: 100%;';
-        svg.appendChild(content).removeAttribute('id');
-        return svg;
-      }
-      return null;
-    }
-
-  });
-</script>
-<!--
-This is a simple adaptive 2-columns grid. The first and every 4th item have width:100%, and the
-rest of the items have width equals to the column width (`columnWidth` in px). The grid will reflow
-to single column when 2 columns (plus a defined gutter margin) no longer fit on screen.
-
-    <two-columns-grid column-width="320" gutter="16">
-      <div class="card"></div>
-      <div class="card"></div>
-      <div class="card"></div>
-      <div class="card"></div>
-      <div class="card"></div>
-    </two-columns-grid>
-
--->
-<style>
-
-    body {
-      margin: 0;
-      font-family: 'Roboto', 'Noto', sans-serif;
-      background-color: #fafafa;
-    }
-
-  </style>
-
-</head>
-<body unresolved=""><div hidden="" by-vulcanize=""><dom-module id="lab-router" assetpath="../../../lab-elements/">
-  <script>
-
-    Polymer({
-
-      is: 'lab-router',
-
-      behaviors: [
-        Polymer.LabRoutingBehavior,
-        Polymer.LabRoutingRootBehavior
-      ],
-
-      properties: {
-
-        route: {
-          notify: true
-        },
-
-        matches: {
-          value: ':base'
-        }
-
-      }
-
-    });
-  </script>
-</dom-module>
-
-<dom-module id="lab-route" assetpath="../../../lab-elements/">
-  <script>
-
-    Polymer({
-
-      is: 'lab-route',
-
-      behaviors: [
-        Polymer.LabRoutingBehavior
-      ]
-
-    });
-
-  </script>
-</dom-module>
-<dom-module id="iron-pages" assetpath="../../../iron-pages/">
-
-  <template>
-    <style>
-      :host {
-        display: block;
-      }
-
-      :host > ::content > :not(.iron-selected) {
-        display: none !important;
-      }
-    </style>
-
-    <content></content>
-  </template>
-
-  <script>
-    Polymer({
-
-      is: 'iron-pages',
-
-      behaviors: [
-        Polymer.IronResizableBehavior,
-        Polymer.IronSelectableBehavior
-      ],
-
-      properties: {
-
-        // as the selected page is the only one visible, activateEvent
-        // is both non-sensical and problematic; e.g. in cases where a user
-        // handler attempts to change the page and the activateEvent
-        // handler immediately changes it back
-        activateEvent: {
-          type: String,
-          value: null
-        }
-
-      },
-
-      observers: [
-        '_selectedPageChanged(selected)'
-      ],
-
-      _selectedPageChanged: function(selected, old) {
-        this.async(this.notifyResize);
-      }
-    });
-
-  </script>
-</dom-module>
-<dom-module id="iron-icon" assetpath="../../../iron-icon/">
-
-  <style>
-    :host {
-      @apply(--layout-inline);
-      @apply(--layout-center-center);
-      position: relative;
-
-      vertical-align: middle;
-
-      fill: var(--iron-icon-fill-color, currentcolor);
-      stroke: var(--iron-icon-stroke-color, none);
-
-      width: var(--iron-icon-width, 24px);
-      height: var(--iron-icon-height, 24px);
-    }
-  </style>
-
-  <template>
-  </template>
-
-  <script>
-
-    Polymer({
-
-      is: 'iron-icon',
-
-      properties: {
-
-        /**
-         * The name of the icon to use. The name should be of the form:
-         * `iconset_name:icon_name`.
-         */
-        icon: {
-          type: String,
-          observer: '_iconChanged'
-        },
-
-        /**
-         * The name of the theme to used, if one is specified by the
-         * iconset.
-         */
-        theme: {
-          type: String,
-          observer: '_updateIcon'
-        },
-
-        /**
-         * If using iron-icon without an iconset, you can set the src to be
-         * the URL of an individual icon image file. Note that this will take
-         * precedence over a given icon attribute.
-         */
-        src: {
-          type: String,
-          observer: '_srcChanged'
-        },
-
-        /**
-         * @type {!Polymer.IronMeta}
-         */
-        _meta: {
-          value: Polymer.Base.create('iron-meta', {type: 'iconset'})
-        }
-
-      },
-
-      _DEFAULT_ICONSET: 'icons',
-
-      _iconChanged: function(icon) {
-        var parts = (icon || '').split(':');
-        this._iconName = parts.pop();
-        this._iconsetName = parts.pop() || this._DEFAULT_ICONSET;
-        this._updateIcon();
-      },
-
-      _srcChanged: function(src) {
-        this._updateIcon();
-      },
-
-      _usesIconset: function() {
-        return this.icon || !this.src;
-      },
-
-      /** @suppress {visibility} */
-      _updateIcon: function() {
-        if (this._usesIconset()) {
-          if (this._iconsetName) {
-            this._iconset = /** @type {?Polymer.Iconset} */ (
-              this._meta.byKey(this._iconsetName));
-            if (this._iconset) {
-              this._iconset.applyIcon(this, this._iconName, this.theme);
-              this.unlisten(window, 'iron-iconset-added', '_updateIcon');
-            } else {
-              this.listen(window, 'iron-iconset-added', '_updateIcon');
-            }
-          }
-        } else {
-          if (!this._img) {
-            this._img = document.createElement('img');
-            this._img.style.width = '100%';
-            this._img.style.height = '100%';
-            this._img.draggable = false;
-          }
-          this._img.src = this.src;
-          Polymer.dom(this.root).appendChild(this._img);
-        }
-      }
-
-    });
-
-  </script>
-
-</dom-module>
 <dom-module id="paper-ripple" assetpath="../../../paper-ripple/">
 
   <!--
@@ -16642,7 +14759,304 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
     });
   })();
 </script>
-<dom-module id="paper-material-shared-styles" assetpath="../../../paper-material/">
+<script>
+
+  /**
+   * `Polymer.PaperRippleBehavior` dynamically implements a ripple
+   * when the element has focus via pointer or keyboard.
+   *
+   * NOTE: This behavior is intended to be used in conjunction with and after
+   * `Polymer.IronButtonState` and `Polymer.IronControlState`.
+   *
+   * @polymerBehavior Polymer.PaperRippleBehavior
+   */
+  Polymer.PaperRippleBehavior = {
+
+    properties: {
+      /**
+       * If true, the element will not produce a ripple effect when interacted
+       * with via the pointer.
+       */
+      noink: {
+        type: Boolean,
+        observer: '_noinkChanged'
+      },
+
+      /**
+       * @type {Element|undefined}
+       */
+      _rippleContainer: {
+        type: Object,
+      }
+    },
+
+    /**
+     * Ensures a `<paper-ripple>` element is available when the element is
+     * focused.
+     */
+    _buttonStateChanged: function() {
+      if (this.focused) {
+        this.ensureRipple();
+      }
+    },
+
+    /**
+     * In addition to the functionality provided in `IronButtonState`, ensures
+     * a ripple effect is created when the element is in a `pressed` state.
+     */
+    _downHandler: function(event) {
+      Polymer.IronButtonStateImpl._downHandler.call(this, event);
+      if (this.pressed) {
+        this.ensureRipple(event);
+      }
+    },
+
+    /**
+     * Ensures this element contains a ripple effect. For startup efficiency
+     * the ripple effect is dynamically on demand when needed.
+     * @param {!Event=} optTriggeringEvent (optional) event that triggered the
+     * ripple.
+     */
+    ensureRipple: function(optTriggeringEvent) {
+      if (!this.hasRipple()) {
+        this._ripple = this._createRipple();
+        this._ripple.noink = this.noink;
+        var rippleContainer = this._rippleContainer || this.root;
+        if (rippleContainer) {
+          Polymer.dom(rippleContainer).appendChild(this._ripple);
+        }
+        if (optTriggeringEvent) {
+          // Check if the event happened inside of the ripple container
+          // Fall back to host instead of the root because distributed text
+          // nodes are not valid event targets
+          var domContainer = Polymer.dom(this._rippleContainer || this);
+          var target = Polymer.dom(optTriggeringEvent).rootTarget;
+          if (domContainer.deepContains( /** @type {Node} */(target))) {
+            this._ripple.uiDownAction(optTriggeringEvent);
+          }
+        }
+      }
+    },
+
+    /**
+     * Returns the `<paper-ripple>` element used by this element to create
+     * ripple effects. The element's ripple is created on demand, when
+     * necessary, and calling this method will force the
+     * ripple to be created.
+     */
+    getRipple: function() {
+      this.ensureRipple();
+      return this._ripple;
+    },
+
+    /**
+     * Returns true if this element currently contains a ripple effect.
+     * @return {boolean}
+     */
+    hasRipple: function() {
+      return Boolean(this._ripple);
+    },
+
+    /**
+     * Create the element's ripple effect via creating a `<paper-ripple>`.
+     * Override this method to customize the ripple element.
+     * @return {!PaperRippleElement} Returns a `<paper-ripple>` element.
+     */
+    _createRipple: function() {
+      return /** @type {!PaperRippleElement} */ (
+          document.createElement('paper-ripple'));
+    },
+
+    _noinkChanged: function(noink) {
+      if (this.hasRipple()) {
+        this._ripple.noink = noink;
+      }
+    }
+
+  };
+
+</script><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<script>
+
+  /** @polymerBehavior Polymer.PaperButtonBehavior */
+  Polymer.PaperButtonBehaviorImpl = {
+
+    properties: {
+
+      /**
+       * The z-depth of this element, from 0-5. Setting to 0 will remove the
+       * shadow, and each increasing number greater than 0 will be "deeper"
+       * than the last.
+       *
+       * @attribute elevation
+       * @type number
+       * @default 1
+       */
+      elevation: {
+        type: Number,
+        reflectToAttribute: true,
+        readOnly: true
+      }
+
+    },
+
+    observers: [
+      '_calculateElevation(focused, disabled, active, pressed, receivedFocusFromKeyboard)',
+      '_computeKeyboardClass(receivedFocusFromKeyboard)'
+    ],
+
+    hostAttributes: {
+      role: 'button',
+      tabindex: '0',
+      animated: true
+    },
+
+    _calculateElevation: function() {
+      var e = 1;
+      if (this.disabled) {
+        e = 0;
+      } else if (this.active || this.pressed) {
+        e = 4;
+      } else if (this.receivedFocusFromKeyboard) {
+        e = 3;
+      }
+      this._setElevation(e);
+    },
+
+    _computeKeyboardClass: function(receivedFocusFromKeyboard) {
+      this.toggleClass('keyboard-focus', receivedFocusFromKeyboard);
+    },
+
+    /**
+     * In addition to `IronButtonState` behavior, when space key goes down,
+     * create a ripple down effect.
+     *
+     * @param {!KeyboardEvent} event .
+     */
+    _spaceKeyDownHandler: function(event) {
+      Polymer.IronButtonStateImpl._spaceKeyDownHandler.call(this, event);
+      // Ensure that there is at most one ripple when the space key is held down.
+      if (this.hasRipple() && this.getRipple().ripples.length < 1) {
+        this._ripple.uiDownAction();
+      }
+    },
+
+    /**
+     * In addition to `IronButtonState` behavior, when space key goes up,
+     * create a ripple up effect.
+     *
+     * @param {!KeyboardEvent} event .
+     */
+    _spaceKeyUpHandler: function(event) {
+      Polymer.IronButtonStateImpl._spaceKeyUpHandler.call(this, event);
+      if (this.hasRipple()) {
+        this._ripple.uiUpAction();
+      }
+    }
+
+  };
+
+  /** @polymerBehavior */
+  Polymer.PaperButtonBehavior = [
+    Polymer.IronButtonState,
+    Polymer.IronControlState,
+    Polymer.PaperRippleBehavior,
+    Polymer.PaperButtonBehaviorImpl
+  ];
+
+</script><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><style is="custom-style">
+
+  :root {
+
+    --shadow-transition: {
+      transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    };
+
+    --shadow-none: {
+      box-shadow: none;
+    };
+
+    /* from http://codepen.io/shyndman/pen/c5394ddf2e8b2a5c9185904b57421cdb */
+
+    --shadow-elevation-2dp: {
+      box-shadow: 0 2px 2px 0 rgba(0, 0, 0, 0.14),
+                  0 1px 5px 0 rgba(0, 0, 0, 0.12),
+                  0 3px 1px -2px rgba(0, 0, 0, 0.2);
+    };
+
+    --shadow-elevation-3dp: {
+      box-shadow: 0 3px 4px 0 rgba(0, 0, 0, 0.14),
+                  0 1px 8px 0 rgba(0, 0, 0, 0.12),
+                  0 3px 3px -2px rgba(0, 0, 0, 0.4);
+    };
+
+    --shadow-elevation-4dp: {
+      box-shadow: 0 4px 5px 0 rgba(0, 0, 0, 0.14),
+                  0 1px 10px 0 rgba(0, 0, 0, 0.12),
+                  0 2px 4px -1px rgba(0, 0, 0, 0.4);
+    };
+
+    --shadow-elevation-6dp: {
+      box-shadow: 0 6px 10px 0 rgba(0, 0, 0, 0.14),
+                  0 1px 18px 0 rgba(0, 0, 0, 0.12),
+                  0 3px 5px -1px rgba(0, 0, 0, 0.4);
+    };
+
+    --shadow-elevation-8dp: {
+      box-shadow: 0 8px 10px 1px rgba(0, 0, 0, 0.14),
+                  0 3px 14px 2px rgba(0, 0, 0, 0.12),
+                  0 5px 5px -3px rgba(0, 0, 0, 0.4);
+    };
+
+    --shadow-elevation-12dp: {
+      box-shadow: 0 12px 16px 1px rgba(0, 0, 0, 0.14),
+                  0 4px 22px 3px rgba(0, 0, 0, 0.12),
+                  0 6px 7px -4px rgba(0, 0, 0, 0.4);
+    };
+
+    --shadow-elevation-16dp: {
+      box-shadow: 0 16px 24px 2px rgba(0, 0, 0, 0.14),
+                  0  6px 30px 5px rgba(0, 0, 0, 0.12),
+                  0  8px 10px -5px rgba(0, 0, 0, 0.4);
+    };
+
+  }
+
+</style>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><dom-module id="paper-material-shared-styles" assetpath="../../../paper-material/">
   <template>
     <style>
       :host {
@@ -16672,6 +15086,448 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
     </style>
   </template>
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><style is="custom-style">
+
+  :root {
+
+    /* Material Design color palette for Google products */
+
+    --google-red-100: #f4c7c3;
+    --google-red-300: #e67c73;
+    --google-red-500: #db4437;
+    --google-red-700: #c53929;
+
+    --google-blue-100: #c6dafc;
+    --google-blue-300: #7baaf7;
+    --google-blue-500: #4285f4;
+    --google-blue-700: #3367d6;
+
+    --google-green-100: #b7e1cd;
+    --google-green-300: #57bb8a;
+    --google-green-500: #0f9d58;
+    --google-green-700: #0b8043;
+
+    --google-yellow-100: #fce8b2;
+    --google-yellow-300: #f7cb4d;
+    --google-yellow-500: #f4b400;
+    --google-yellow-700: #f09300;
+
+    --google-grey-100: #f5f5f5;
+    --google-grey-300: #e0e0e0;
+    --google-grey-500: #9e9e9e;
+    --google-grey-700: #616161;
+    
+    /* Material Design color palette from online spec document */
+
+    --paper-red-50: #ffebee;
+    --paper-red-100: #ffcdd2;
+    --paper-red-200: #ef9a9a;
+    --paper-red-300: #e57373;
+    --paper-red-400: #ef5350;
+    --paper-red-500: #f44336;
+    --paper-red-600: #e53935;
+    --paper-red-700: #d32f2f;
+    --paper-red-800: #c62828;
+    --paper-red-900: #b71c1c;
+    --paper-red-a100: #ff8a80;
+    --paper-red-a200: #ff5252;
+    --paper-red-a400: #ff1744;
+    --paper-red-a700: #d50000;
+ 
+    --paper-pink-50: #fce4ec;
+    --paper-pink-100: #f8bbd0;
+    --paper-pink-200: #f48fb1;
+    --paper-pink-300: #f06292;
+    --paper-pink-400: #ec407a;
+    --paper-pink-500: #e91e63;
+    --paper-pink-600: #d81b60;
+    --paper-pink-700: #c2185b;
+    --paper-pink-800: #ad1457;
+    --paper-pink-900: #880e4f;
+    --paper-pink-a100: #ff80ab;
+    --paper-pink-a200: #ff4081;
+    --paper-pink-a400: #f50057;
+    --paper-pink-a700: #c51162;
+ 
+    --paper-purple-50: #f3e5f5;
+    --paper-purple-100: #e1bee7;
+    --paper-purple-200: #ce93d8;
+    --paper-purple-300: #ba68c8;
+    --paper-purple-400: #ab47bc;
+    --paper-purple-500: #9c27b0;
+    --paper-purple-600: #8e24aa;
+    --paper-purple-700: #7b1fa2;
+    --paper-purple-800: #6a1b9a;
+    --paper-purple-900: #4a148c;
+    --paper-purple-a100: #ea80fc;
+    --paper-purple-a200: #e040fb;
+    --paper-purple-a400: #d500f9;
+    --paper-purple-a700: #aa00ff;
+ 
+    --paper-deep-purple-50: #ede7f6;
+    --paper-deep-purple-100: #d1c4e9;
+    --paper-deep-purple-200: #b39ddb;
+    --paper-deep-purple-300: #9575cd;
+    --paper-deep-purple-400: #7e57c2;
+    --paper-deep-purple-500: #673ab7;
+    --paper-deep-purple-600: #5e35b1;
+    --paper-deep-purple-700: #512da8;
+    --paper-deep-purple-800: #4527a0;
+    --paper-deep-purple-900: #311b92;
+    --paper-deep-purple-a100: #b388ff;
+    --paper-deep-purple-a200: #7c4dff;
+    --paper-deep-purple-a400: #651fff;
+    --paper-deep-purple-a700: #6200ea;
+ 
+    --paper-indigo-50: #e8eaf6;
+    --paper-indigo-100: #c5cae9;
+    --paper-indigo-200: #9fa8da;
+    --paper-indigo-300: #7986cb;
+    --paper-indigo-400: #5c6bc0;
+    --paper-indigo-500: #3f51b5;
+    --paper-indigo-600: #3949ab;
+    --paper-indigo-700: #303f9f;
+    --paper-indigo-800: #283593;
+    --paper-indigo-900: #1a237e;
+    --paper-indigo-a100: #8c9eff;
+    --paper-indigo-a200: #536dfe;
+    --paper-indigo-a400: #3d5afe;
+    --paper-indigo-a700: #304ffe;
+ 
+    --paper-blue-50: #e3f2fd;
+    --paper-blue-100: #bbdefb;
+    --paper-blue-200: #90caf9;
+    --paper-blue-300: #64b5f6;
+    --paper-blue-400: #42a5f5;
+    --paper-blue-500: #2196f3;
+    --paper-blue-600: #1e88e5;
+    --paper-blue-700: #1976d2;
+    --paper-blue-800: #1565c0;
+    --paper-blue-900: #0d47a1;
+    --paper-blue-a100: #82b1ff;
+    --paper-blue-a200: #448aff;
+    --paper-blue-a400: #2979ff;
+    --paper-blue-a700: #2962ff;
+ 
+    --paper-light-blue-50: #e1f5fe;
+    --paper-light-blue-100: #b3e5fc;
+    --paper-light-blue-200: #81d4fa;
+    --paper-light-blue-300: #4fc3f7;
+    --paper-light-blue-400: #29b6f6;
+    --paper-light-blue-500: #03a9f4;
+    --paper-light-blue-600: #039be5;
+    --paper-light-blue-700: #0288d1;
+    --paper-light-blue-800: #0277bd;
+    --paper-light-blue-900: #01579b;
+    --paper-light-blue-a100: #80d8ff;
+    --paper-light-blue-a200: #40c4ff;
+    --paper-light-blue-a400: #00b0ff;
+    --paper-light-blue-a700: #0091ea;
+ 
+    --paper-cyan-50: #e0f7fa;
+    --paper-cyan-100: #b2ebf2;
+    --paper-cyan-200: #80deea;
+    --paper-cyan-300: #4dd0e1;
+    --paper-cyan-400: #26c6da;
+    --paper-cyan-500: #00bcd4;
+    --paper-cyan-600: #00acc1;
+    --paper-cyan-700: #0097a7;
+    --paper-cyan-800: #00838f;
+    --paper-cyan-900: #006064;
+    --paper-cyan-a100: #84ffff;
+    --paper-cyan-a200: #18ffff;
+    --paper-cyan-a400: #00e5ff;
+    --paper-cyan-a700: #00b8d4;
+ 
+    --paper-teal-50: #e0f2f1;
+    --paper-teal-100: #b2dfdb;
+    --paper-teal-200: #80cbc4;
+    --paper-teal-300: #4db6ac;
+    --paper-teal-400: #26a69a;
+    --paper-teal-500: #009688;
+    --paper-teal-600: #00897b;
+    --paper-teal-700: #00796b;
+    --paper-teal-800: #00695c;
+    --paper-teal-900: #004d40;
+    --paper-teal-a100: #a7ffeb;
+    --paper-teal-a200: #64ffda;
+    --paper-teal-a400: #1de9b6;
+    --paper-teal-a700: #00bfa5;
+ 
+    --paper-green-50: #e8f5e9;
+    --paper-green-100: #c8e6c9;
+    --paper-green-200: #a5d6a7;
+    --paper-green-300: #81c784;
+    --paper-green-400: #66bb6a;
+    --paper-green-500: #4caf50;
+    --paper-green-600: #43a047;
+    --paper-green-700: #388e3c;
+    --paper-green-800: #2e7d32;
+    --paper-green-900: #1b5e20;
+    --paper-green-a100: #b9f6ca;
+    --paper-green-a200: #69f0ae;
+    --paper-green-a400: #00e676;
+    --paper-green-a700: #00c853;
+ 
+    --paper-light-green-50: #f1f8e9;
+    --paper-light-green-100: #dcedc8;
+    --paper-light-green-200: #c5e1a5;
+    --paper-light-green-300: #aed581;
+    --paper-light-green-400: #9ccc65;
+    --paper-light-green-500: #8bc34a;
+    --paper-light-green-600: #7cb342;
+    --paper-light-green-700: #689f38;
+    --paper-light-green-800: #558b2f;
+    --paper-light-green-900: #33691e;
+    --paper-light-green-a100: #ccff90;
+    --paper-light-green-a200: #b2ff59;
+    --paper-light-green-a400: #76ff03;
+    --paper-light-green-a700: #64dd17;
+ 
+    --paper-lime-50: #f9fbe7;
+    --paper-lime-100: #f0f4c3;
+    --paper-lime-200: #e6ee9c;
+    --paper-lime-300: #dce775;
+    --paper-lime-400: #d4e157;
+    --paper-lime-500: #cddc39;
+    --paper-lime-600: #c0ca33;
+    --paper-lime-700: #afb42b;
+    --paper-lime-800: #9e9d24;
+    --paper-lime-900: #827717;
+    --paper-lime-a100: #f4ff81;
+    --paper-lime-a200: #eeff41;
+    --paper-lime-a400: #c6ff00;
+    --paper-lime-a700: #aeea00;
+ 
+    --paper-yellow-50: #fffde7;
+    --paper-yellow-100: #fff9c4;
+    --paper-yellow-200: #fff59d;
+    --paper-yellow-300: #fff176;
+    --paper-yellow-400: #ffee58;
+    --paper-yellow-500: #ffeb3b;
+    --paper-yellow-600: #fdd835;
+    --paper-yellow-700: #fbc02d;
+    --paper-yellow-800: #f9a825;
+    --paper-yellow-900: #f57f17;
+    --paper-yellow-a100: #ffff8d;
+    --paper-yellow-a200: #ffff00;
+    --paper-yellow-a400: #ffea00;
+    --paper-yellow-a700: #ffd600;
+ 
+    --paper-amber-50: #fff8e1;
+    --paper-amber-100: #ffecb3;
+    --paper-amber-200: #ffe082;
+    --paper-amber-300: #ffd54f;
+    --paper-amber-400: #ffca28;
+    --paper-amber-500: #ffc107;
+    --paper-amber-600: #ffb300;
+    --paper-amber-700: #ffa000;
+    --paper-amber-800: #ff8f00;
+    --paper-amber-900: #ff6f00;
+    --paper-amber-a100: #ffe57f;
+    --paper-amber-a200: #ffd740;
+    --paper-amber-a400: #ffc400;
+    --paper-amber-a700: #ffab00;
+ 
+    --paper-orange-50: #fff3e0;
+    --paper-orange-100: #ffe0b2;
+    --paper-orange-200: #ffcc80;
+    --paper-orange-300: #ffb74d;
+    --paper-orange-400: #ffa726;
+    --paper-orange-500: #ff9800;
+    --paper-orange-600: #fb8c00;
+    --paper-orange-700: #f57c00;
+    --paper-orange-800: #ef6c00;
+    --paper-orange-900: #e65100;
+    --paper-orange-a100: #ffd180;
+    --paper-orange-a200: #ffab40;
+    --paper-orange-a400: #ff9100;
+    --paper-orange-a700: #ff6500;
+ 
+    --paper-deep-orange-50: #fbe9e7;
+    --paper-deep-orange-100: #ffccbc;
+    --paper-deep-orange-200: #ffab91;
+    --paper-deep-orange-300: #ff8a65;
+    --paper-deep-orange-400: #ff7043;
+    --paper-deep-orange-500: #ff5722;
+    --paper-deep-orange-600: #f4511e;
+    --paper-deep-orange-700: #e64a19;
+    --paper-deep-orange-800: #d84315;
+    --paper-deep-orange-900: #bf360c;
+    --paper-deep-orange-a100: #ff9e80;
+    --paper-deep-orange-a200: #ff6e40;
+    --paper-deep-orange-a400: #ff3d00;
+    --paper-deep-orange-a700: #dd2c00;
+ 
+    --paper-brown-50: #efebe9;
+    --paper-brown-100: #d7ccc8;
+    --paper-brown-200: #bcaaa4;
+    --paper-brown-300: #a1887f;
+    --paper-brown-400: #8d6e63;
+    --paper-brown-500: #795548;
+    --paper-brown-600: #6d4c41;
+    --paper-brown-700: #5d4037;
+    --paper-brown-800: #4e342e;
+    --paper-brown-900: #3e2723;
+ 
+    --paper-grey-50: #fafafa;
+    --paper-grey-100: #f5f5f5;
+    --paper-grey-200: #eeeeee;
+    --paper-grey-300: #e0e0e0;
+    --paper-grey-400: #bdbdbd;
+    --paper-grey-500: #9e9e9e;
+    --paper-grey-600: #757575;
+    --paper-grey-700: #616161;
+    --paper-grey-800: #424242;
+    --paper-grey-900: #212121;
+ 
+    --paper-blue-grey-50: #eceff1;
+    --paper-blue-grey-100: #cfd8dc;
+    --paper-blue-grey-200: #b0bec5;
+    --paper-blue-grey-300: #90a4ae;
+    --paper-blue-grey-400: #78909c;
+    --paper-blue-grey-500: #607d8b;
+    --paper-blue-grey-600: #546e7a;
+    --paper-blue-grey-700: #455a64;
+    --paper-blue-grey-800: #37474f;
+    --paper-blue-grey-900: #263238;
+
+    /* opacity for dark text on a light background */
+    --dark-divider-opacity: 0.12;
+    --dark-disabled-opacity: 0.38; /* or hint text or icon */
+    --dark-secondary-opacity: 0.54;
+    --dark-primary-opacity: 0.87;
+
+    /* opacity for light text on a dark background */
+    --light-divider-opacity: 0.12;
+    --light-disabled-opacity: 0.3; /* or hint text or icon */
+    --light-secondary-opacity: 0.7;
+    --light-primary-opacity: 1.0;
+
+  }
+
+</style>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!-- Taken from https://www.google.com/design/spec/style/color.html#color-ui-color-application -->
+
+<style is="custom-style">
+
+  :root {
+    /*
+     * You can use these generic variables in your elements for easy theming.
+     * For example, if all your elements use `--primary-text-color` as its main
+     * color, then switching from a light to a dark theme is just a matter of
+     * changing the value of `--primary-text-color` in your application.
+     */
+    --primary-text-color: var(--light-theme-text-color);
+    --primary-background-color: var(--light-theme-background-color);
+    --secondary-text-color: var(--light-theme-secondary-color);
+    --disabled-text-color: var(--light-theme-disabled-color);
+    --divider-color: var(--light-theme-divider-color);
+    --error-color: var(--paper-deep-orange-a700);
+
+    /*
+     * Primary and accent colors. Also see color.html for more colors.
+     */
+    --primary-color: var(--paper-indigo-500);
+    --light-primary-color: var(--paper-indigo-100);
+    --dark-primary-color: var(--paper-indigo-700);
+
+    --accent-color: var(--paper-pink-a200);
+    --light-accent-color: var(--paper-pink-a100);
+    --dark-accent-color: var(--paper-pink-a400);
+
+
+    /*
+     * Material Design Light background theme
+     */
+    --light-theme-background-color: #ffffff;
+    --light-theme-base-color: #000000;
+    --light-theme-text-color: var(--paper-grey-900);
+    --light-theme-secondary-color: #737373;  /* for secondary text and icons */
+    --light-theme-disabled-color: #9b9b9b;  /* disabled/hint text */
+    --light-theme-divider-color: #dbdbdb;
+
+    /*
+     * Material Design Dark background theme
+     */
+    --dark-theme-background-color: var(--paper-grey-900);
+    --dark-theme-base-color: #ffffff;
+    --dark-theme-text-color: #ffffff;
+    --dark-theme-secondary-color: #bcbcbc;  /* for secondary text and icons */
+    --dark-theme-disabled-color: #646464;  /* disabled/hint text */
+    --dark-theme-divider-color: #3c3c3c;
+
+    /*
+     * Deprecated values because of their confusing names.
+     */
+    --text-primary-color: var(--dark-theme-text-color);
+    --default-primary-color: var(--primary-color);
+
+  }
+
+</style>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+Material design: [Floating Action Button](https://www.google.com/design/spec/components/buttons-floating-action-button.html)
+
+`paper-fab` is a floating action button. It contains an image placed in the center and
+comes in two sizes: regular size and a smaller size by applying the attribute `mini`. When
+the user touches the button, a ripple effect emanates from the center of the button.
+
+You may import `iron-icons` to use with this element, or provide a URL to a custom icon.
+See `iron-iconset` for more information about how to use a custom icon set.
+
+Example:
+
+    <link href="path/to/iron-icons/iron-icons.html" rel="import">
+
+    <paper-fab icon="add"></paper-fab>
+    <paper-fab mini icon="favorite"></paper-fab>
+    <paper-fab src="star.png"></paper-fab>
+
+
+### Styling
+
+The following custom properties and mixins are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--paper-fab-background` | The background color of the button | `--accent-color`
+`--paper-fab-keyboard-focus-background` | The background color of the button when focused | `--paper-pink-900`
+`--paper-fab-disabled-background` | The background color of the button when it's disabled | `--paper-grey-300`
+`--paper-fab-disabled-text` | The text color of the button when it's disabled | `--paper-grey-500`
+`--paper-fab` | Mixin applied to the button | `{}`
+`--paper-fab-mini` | Mixin applied to a mini button | `{}`
+`--paper-fab-disabled` | Mixin applied to a disabled button | `{}`
+`--paper-fab-iron-icon` | Mixin applied to the iron-icon within the button | `{}`
+
+@group Paper Elements
+@demo demo/index.html
+-->
+
 <dom-module id="paper-fab" assetpath="../../../paper-fab/">
   <template strip-whitespace="">
     <style include="paper-material-shared-styles">
@@ -16800,6 +15656,118 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
     });
   </script>
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
+
+  /**
+   * `Polymer.PaperInkyFocusBehavior` implements a ripple when the element has keyboard focus.
+   *
+   * @polymerBehavior Polymer.PaperInkyFocusBehavior
+   */
+  Polymer.PaperInkyFocusBehaviorImpl = {
+
+    observers: [
+      '_focusedChanged(receivedFocusFromKeyboard)'
+    ],
+
+    _focusedChanged: function(receivedFocusFromKeyboard) {
+      if (receivedFocusFromKeyboard) {
+        this.ensureRipple();
+      }
+      if (this.hasRipple()) {
+        this._ripple.holdDown = receivedFocusFromKeyboard;
+      }
+    },
+
+    _createRipple: function() {
+      var ripple = Polymer.PaperRippleBehavior._createRipple();
+      ripple.id = 'ink';
+      ripple.setAttribute('center', '');
+      ripple.classList.add('circle');
+      return ripple;
+    }
+
+  };
+
+  /** @polymerBehavior Polymer.PaperInkyFocusBehavior */
+  Polymer.PaperInkyFocusBehavior = [
+    Polymer.IronButtonState,
+    Polymer.IronControlState,
+    Polymer.PaperRippleBehavior,
+    Polymer.PaperInkyFocusBehaviorImpl
+  ];
+
+</script>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+Material design: [Icon toggles](https://www.google.com/design/spec/components/buttons.html#buttons-toggle-buttons)
+
+`paper-icon-button` is a button with an image placed at the center. When the user touches
+the button, a ripple effect emanates from the center of the button.
+
+`paper-icon-button` includes a default icon set.  Use `icon` to specify which icon
+from the icon set to use.
+
+    <paper-icon-button icon="menu"></paper-icon-button>
+
+See [`iron-iconset`](iron-iconset) for more information about
+how to use a custom icon set.
+
+Example:
+
+    <link href="path/to/iron-icons/iron-icons.html" rel="import">
+
+    <paper-icon-button icon="favorite"></paper-icon-button>
+    <paper-icon-button src="star.png"></paper-icon-button>
+
+To use `paper-icon-button` as a link, wrap it in an anchor tag. Since `paper-icon-button`
+will already receive focus, you may want to prevent the anchor tag from receiving focus
+as well by setting its tabindex to -1.
+
+    <a href="https://www.polymer-project.org" tabindex="-1">
+      <paper-icon-button icon="polymer"></paper-icon-button>
+    </a>
+
+### Styling
+
+Style the button with CSS as you would a normal DOM element. If you are using the icons
+provided by `iron-icons`, they will inherit the foreground color of the button.
+
+    /* make a red "favorite" button */
+    <paper-icon-button icon="favorite" style="color: red;"></paper-icon-button>
+
+By default, the ripple is the same color as the foreground at 25% opacity. You may
+customize the color using the `--paper-icon-button-ink-color` custom property.
+
+The following custom properties and mixins are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--paper-icon-button-disabled-text` | The color of the disabled button | `--disabled-text-color`
+`--paper-icon-button-ink-color` | Selected/focus ripple color | `--primary-text-color`
+`--paper-icon-button` | Mixin for a button | `{}`
+`--paper-icon-button-disabled` | Mixin for a disabled button | `{}`
+`--paper-icon-button-hover` | Mixin for button on hover | `{}`
+
+@group Paper Elements
+@element paper-icon-button
+@demo demo/index.html
+-->
+
 <dom-module id="paper-icon-button" assetpath="../../../paper-icon-button/">
   <template strip-whitespace="">
     <style>
@@ -16816,12 +15784,13 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
         cursor: pointer;
         z-index: 0;
         line-height: 1;
-        
+
         width: 40px;
         height: 40px;
 
         /* Because of polymer/2558, this style has lower specificity than * */
         box-sizing: border-box !important;
+
         @apply(--paper-icon-button);
       }
 
@@ -16834,10 +15803,11 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
         color: var(--paper-icon-button-disabled-text, --disabled-text-color);
         pointer-events: none;
         cursor: auto;
+
         @apply(--paper-icon-button-disabled);
       }
-      
-      :host(:hover) { 
+
+      :host(:hover) {
         @apply(--paper-icon-button-hover);
       }
 
@@ -16846,6 +15816,7 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
         --iron-icon-height: 100%;
       }
     </style>
+
     <iron-icon id="icon" src="[[src]]" icon="[[icon]]" alt$="[[alt]]"></iron-icon>
   </template>
 
@@ -16900,6 +15871,161 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
     });
   </script>
 </dom-module>
+<!--
+`iron-media-query` can be used to data bind to a CSS media query.
+The `query` property is a bare CSS media query.
+The `query-matches` property is a boolean representing whether the page matches that media query.
+
+Example:
+
+    <iron-media-query query="(min-width: 600px)" query-matches="{{queryMatches}}"></iron-media-query>
+
+@group Iron Elements
+@demo demo/index.html
+@hero hero.svg
+@element iron-media-query
+-->
+
+<script>
+
+  Polymer({
+
+    is: 'iron-media-query',
+
+    properties: {
+
+      /**
+       * The Boolean return value of the media query.
+       */
+      queryMatches: {
+        type: Boolean,
+        value: false,
+        readOnly: true,
+        notify: true
+      },
+
+      /**
+       * The CSS media query to evaluate.
+       */
+      query: {
+        type: String,
+        observer: 'queryChanged'
+      },
+
+      /**
+       * If true, the query attribute is assumed to be a complete media query
+       * string rather than a single media feature.
+       */
+      full: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * @type {function(MediaQueryList)}
+       */
+      _boundMQHandler: {
+        value: function() {
+          return this.queryHandler.bind(this);
+        }
+      },
+
+      /**
+       * @type {MediaQueryList}
+       */
+      _mq: {
+        value: null
+      }
+    },
+
+    attached: function() {
+      this.style.display = 'none';
+      this.queryChanged();
+    },
+
+    detached: function() {
+      this._remove();
+    },
+
+    _add: function() {
+      if (this._mq) {
+        this._mq.addListener(this._boundMQHandler);
+      }
+    },
+
+    _remove: function() {
+      if (this._mq) {
+        this._mq.removeListener(this._boundMQHandler);
+      }
+      this._mq = null;
+    },
+
+    queryChanged: function() {
+      this._remove();
+      var query = this.query;
+      if (!query) {
+        return;
+      }
+      if (!this.full && query[0] !== '(') {
+        query = '(' + query + ')';
+      }
+      this._mq = window.matchMedia(query);
+      this._add();
+      this.queryHandler(this._mq);
+    },
+
+    queryHandler: function(mq) {
+      this._setQueryMatches(mq.matches);
+    }
+
+  });
+
+</script>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-drawer is a navigation drawer that can slide in from the left or right.
+
+Example:
+
+Align the drawer at the start, which is left in LTR layouts (default):
+
+```html
+<app-drawer opened></app-drawer>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer align="end" opened></app-drawer>
+```
+
+To make the contents of the drawer scrollable, create a wrapper for the scroll
+content, and apply height and overflow styles to it.
+
+```html
+<app-drawer>
+  <div style="height: 100%; overflow: auto;"></div>
+</app-drawer>
+```
+
+### Styling
+
+Custom property                  | Description                            | Default
+---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
+`--app-drawer-content-container` | Mixin for the drawer content container | {}
+`--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
+
+@demo app-drawer/demo.html
+-->
+
 <dom-module id="app-drawer" assetpath="../../app-drawer/">
 
   <style>
@@ -16949,7 +16075,7 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
       @apply(--app-drawer-content-container);
     }
 
-    #contentContainer[position=right] {
+    :host([position=right]) > #contentContainer {
       left: auto;
       right: 0;
 
@@ -16967,7 +16093,7 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
       visibility: visible;
     }
 
-    :host([swipe-open]) > #contentContainer[position=right]::after {
+    :host([swipe-open][position=right]) > #contentContainer::after {
       left: auto;
       right: 100%;
     }
@@ -17010,7 +16136,7 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
 
     <div id="scrim" on-tap="_scrimTapHandler"></div>
 
-    <div id="contentContainer" position$="{{position}}">
+    <div id="contentContainer">
       <content></content>
     </div>
 
@@ -17059,7 +16185,8 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
         position: {
           type: String,
           readOnly: true,
-          value: 'left'
+          value: 'left',
+          reflectToAttribute: true
         },
 
         /**
@@ -17234,7 +16361,7 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
 
       _calculateVelocity: function(event) {
         // Find the oldest track event that is within 100ms of track end using binary search.
-        var timeLowerBound = Date.now() - 100;
+        var timeLowerBound = event.timeStamp - 100;
         var trackEvent;
         var min = 0;
         var max = this._trackEvents.length - 1;
@@ -17387,6 +16514,75 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-drawer-layout is a wrapper element that positions an app-drawer and other content. When
+the viewport width is smaller than `responsiveWidth`, this element changes to narrow layout.
+In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
+in/out to hide/reveal the main content.
+
+By default the drawer is aligned to the start, which is left in LTR layouts:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer-layout>
+  <app-drawer align="end">
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+With an app-header-layout:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <app-header-layout>
+    <app-header>
+      <app-toolbar>
+        <div title>App name</div>
+      </app-toolbar>
+    </app-header>
+
+    <!\-\- main content \-\->
+
+  </app-header-layout>
+</app-drawer-layout>
+```
+
+### Styling
+
+Custom property                          | Description                          | Default
+-----------------------------------------|--------------------------------------|---------
+`--app-drawer-layout-content-transition` | Transition for the content container | none
+
+@demo app-drawer-layout/demo.html
+-->
+
 <dom-module id="app-drawer-layout" assetpath="../../app-drawer-layout/">
 
   <style>
@@ -17536,6 +16732,864 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
+
+/**
+ * `Polymer.AppCustomScrollerBehavior` allows an element to respond to scroll events from a
+ * designated scroller (either window or another element).
+ *
+ * Elements that consume this behavior can override the `_scrollHandler`
+ * method to add logic on the scroll event.
+ *
+ * @polymerBehavior
+ */
+Polymer.AppCustomScrollerBehavior = (function() {
+
+  return {
+
+    properties: {
+
+      /**
+       * Specifies the element that will handle the scroll event
+       * on the behalf of the current element. This is typically a reference to an `HTMLElement`,
+       * but there are a few more posibilities:
+       *
+       * ### CSS Selectors
+       * This property can also accept a string containing one CSS selector to an element
+       * accessible within the current scope. e.g.
+       *
+       *```html
+       * <div id="scrollingRegion" style="overflow-y: auto;">
+       *  <app-header scroller="#scrollingRegion">
+       *  </app-header>
+       * </div>
+       *```
+       * In this case, `scroller` will point to the outer div element. Alternatively, 
+       * you can set the property programatically:
+       *
+       *```js
+       * appHeader.scroller = document.querySelector("#scrollingRegion");
+       *```
+       *
+       * ### Window (default)
+       * The scroller property can also point to `window` to use . e.g.
+       *```html
+       * <app-header scroller="window"></app-header>
+       *```
+       * Alternatively, you can set the property programatically:
+       *
+       *```js
+       * appHeader.scroller = window;
+       *```
+       */
+      scroller: {
+        type: Object,
+        value: window,
+        observer: '_scrollerChanged'
+      }
+    },
+
+    _scrollHandler: function noop() {},
+
+    _scrollerChanged: function(scroller, old) {
+      this._boundScrollHandler = this._boundScrollHandler || this._scrollHandler.bind(this);
+
+      if (scroller) {
+        // sugar for the DOM
+        if (typeof scroller === 'string') {
+          if (scroller === 'window') {
+            this.scroller = window;
+          } else {
+            var ownerRoot = Polymer.dom(this).getOwnerRoot();
+            this.scroller = (ownerRoot && ownerRoot.$$) ? ownerRoot.$$(scroller) : Polymer.dom(null).querySelector(scroller);
+          }
+        } else {
+          scroller.addEventListener('scroll', this._boundScrollHandler);
+        }
+      }
+      if (old && old.removeEventListener) {
+        old.removeEventListener('scroll', this._boundScrollHandler);
+      }
+    },
+
+   /**
+    * Gets the number of pixels that the content of an element is scrolled upward.
+    *
+    * @type {number}
+    */
+    get _scrollTop() {
+      if (this.scroller) {
+        return this.scroller === window ? window.pageYOffset : this.scroller.scrollTop;
+      }
+      return 0;
+    },
+
+   /**
+    * Gets the number of pixels that the content of an element is scrolled to the left.
+    *
+    * @type {number}
+    */
+    get _scrollLeft() {
+      if (this.scroller) {
+        return this.scroller === window ? window.pageXOffset : this.scroller.scrollLeft;
+      }
+      return 0;
+    },
+
+    /**
+     * Sets the number of pixels that the content of an element is scrolled upward.
+     *
+     * @type {number}
+     */
+    set _scrollTop(top) {
+      if (this.scroller === window) {
+        window.scrollTo(window.pageXOffset, top);
+      } else if (this.scroller) {
+        this.scroller.scrollTop = top;
+      }
+    },
+
+    /**
+     * Sets the number of pixels that the content of an element is scrolled to the left.
+     *
+     * @type {number}
+     */
+    set _scrollLeft(left) {
+      if (this.scroller === window) {
+        window.scrollTo(left, window.pageYOffset);
+      } else if (this.scroller) {
+        this.scroller.scrollLeft = left;
+      }
+    },
+
+    /**
+     * Scrolls the content to a particular place.
+     *
+     * @method scroll
+     * @param {number} top The top position
+     * @param {number} left The left position
+     */
+    scroll: function(top, left) {
+       if (this.scroller === window) {
+        window.scrollTo(top, left);
+      } else if (this.scroller) {
+        this.scroller.scrollTop = top;
+        this.scroller.scrollLeft = left;
+      }
+    }
+
+  };
+
+})();
+</script>
+
+<!--
+@license
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
+  Polymer.AppLayout = Polymer.AppLayout || {};
+
+  Polymer.AppLayout.scrollEffects = Polymer.AppLayout.scrollEffects || {};
+
+  Polymer.AppLayout.scrollTimingFunction = function easeOutQuad(t, b, c, d) {
+    t /= d;
+    return -c * t*(t-2) + b;
+  };
+
+  /**
+   * Helper function that scrolls to a particular set of coordinates in a scroll target.
+   * If the scroll target is not defined, then it would use the main document as the target.
+   *
+   * To scroll in a smooth fashion, you can set the option `behavior: 'smooth'`. e.g.
+   *
+   * ```js
+   * Polymer.AppLayout.scroll({top: 0, behavior: 'smooth'});
+   * ```
+   *
+   * To scroll in a silent mode, without notifying scroll changes to any app-layout elements,
+   * you can set the option `behavior: 'silent'`. This is particularly useful we you are using
+   * `app-header` and you desire to scroll to the top of a scrolling region without running
+   * scroll effects. e.g.
+   *
+   * ```js
+   * Polymer.AppLayout.scroll({top: 0, behavior: 'silent'});
+   * ```
+   *
+   * @param {Object} options {top: Number, left: Number, behavior: String(smooth | silent)}
+   */
+  Polymer.AppLayout.scroll = function scroll(options) {
+    options = options || {};
+
+    var docEl = document.documentElement;
+    var target = options.target || docEl;
+    var hasNativeScrollBehavior = 'scrollBehavior' in target.style && target.scroll;
+    var scrollClassName = 'app-layout-silent-scroll';
+    var scrollTop = options.top || 0;
+    var scrollLeft = options.left || 0;
+    var scrollTo = target === docEl ? window.scrollTo :
+      function scrollTo(scrollLeft, scrollTop) {
+        target.scrollLeft = scrollLeft;
+        target.scrollTop = scrollTop;
+      };
+
+    if (options.behavior === 'smooth') {
+
+      if (hasNativeScrollBehavior) {
+
+        target.scroll(options);
+
+      } else {
+
+        var timingFn = Polymer.AppLayout.scrollTimingFunction;
+        var startTime = Date.now();
+        var currentScrollTop = target === docEl ? window.pageYOffset : target.scrollTop;
+        var currentScrollLeft = target === docEl ? window.pageXOffset : target.scrollLeft;
+        var deltaScrollTop = scrollTop - currentScrollTop;
+        var deltaScrollLeft = scrollLeft - currentScrollLeft;
+        var duration = 300;
+
+        (function updateFrame() {
+          var now = Date.now();
+          var elapsedTime = now - startTime;
+
+          if (elapsedTime < duration) {
+            scrollTo(
+                timingFn(elapsedTime, currentScrollLeft, deltaScrollLeft, duration),
+                timingFn(elapsedTime, currentScrollTop, deltaScrollTop, duration)
+              );
+            requestAnimationFrame(updateFrame.bind(this));
+          }
+        }).call(this);
+      }
+
+    } else if (options.behavior === 'silent') {
+
+      docEl.classList.add(scrollClassName);
+
+      // Browsers keep the scroll momentum even if the bottom of the scrolling content
+      // was reached. This means that calling scroll({top: 0, behavior: 'silent'}) when
+      // the momentum is still going will result in more scroll events and thus scroll effects.
+      // This seems to only apply when using document scrolling.
+      // Therefore, when should we remove the class from the document element?
+
+      clearInterval(this._scrollTimer);
+
+      this._scrollTimer = setTimeout(function() {
+        docEl.classList.remove(scrollClassName);
+        this._scrollTimer = null;
+      }, 100);
+
+      scrollTo(scrollLeft, scrollTop);
+
+    } else {
+
+      scrollTo(scrollLeft, scrollTop);
+
+    }
+  };
+
+</script>
+<script>
+  /**
+   * `Polymer.AppScrollEffectsBehavior` provides an interface that allows to consume scrolls events.
+   * Effects are installed in the `Polymer.AppLayout.scrollEffects` namescape.
+   *
+   * A few effects are defined in `app-scroll-effects.html`, but, by default, no effect is imported.
+   * Thus, users need to explicitly import the dependency.
+   *
+   * Elements that consume this behavior are required to override the folllowing methods:
+   *
+   * * `_updateScrollState`
+   * * `isOnScreen`
+   * * `isContentBelow`
+   *
+   * @polymerBehavior
+   */
+  Polymer.AppScrollEffectsBehavior = [
+    Polymer.AppCustomScrollerBehavior,
+   {
+
+    properties: {
+
+      /**
+       * A space-separated list of the effects names that will be triggered when the user scrolls.
+       * e.g. `waterfall parallax-background` installs the `waterfall` and `parallax-background`.
+       */
+      effects: {
+        type: String,
+        value: ''
+      },
+
+      /**
+       * An object that configurates the effects installed via the `effects` property. e.g.
+       * ```js
+       *  element.effectsConfig = {
+       *   "blend-background": {
+       *     "startsAt": 0.5
+       *   }
+       * };
+       * ```
+       * Every effect has at least two config properties: `startsAt` and `endsAt`.
+       * These properties indicate when the event should start and end respectively
+       * and relative to the overall element progress. So for example, if `blend-background`
+       * starts at `0.5`, the effect will only start once the current element reaches 0.5
+       * of its progress. In this context, the progress is a value in the range of `[0, 1]`
+       * that indicates where this element is on the screen relative to the viewport.
+       */
+      effectsConfig: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+       * Disables CSS transitions and scroll effects on the element.
+       */
+      disabled: {
+        type: Boolean,
+        reflectToAttribute: true,
+        value: false
+      }
+    },
+
+    observers: [
+      '_effectsChanged(effects, effectsConfig)'
+    ],
+
+    /**
+     * Updates the scroll state. This method should be overridden
+     * by the consumer of this behavior.
+     *
+     * @abstract
+     * @method _updateScrollState
+     */
+    _updateScrollState: function() {},
+
+    /**
+     * Returns true if the current element is on the screen.
+     * That is, visible in the current viewport. This method should be
+     * overridden by the consumer of this behavior.
+     *
+     * @abstract
+     * @method isOnScreen
+     * @return {boolean}
+     */
+    isOnScreen: function() {
+      return false;
+    },
+
+    /**
+     * Returns true if there's content below the current element. This method
+     * should be overridden by the consumer of this behavior.
+     *
+     * @abstract
+     * @method isContentBelow
+     * @return {boolean}
+     */
+    isContentBelow: function() {
+      return false;
+    },
+
+    /**
+     * List of effects handlers that will take place during scroll.
+     *
+     * @type {Array<Function>}
+     */
+    _effectsRunFn: null,
+
+    /**
+     * List of the effects definitions installed via the `effects` property.
+     *
+     * @type {Array<Object>}
+     */
+    _effects: null,
+
+    /**
+     * The clamped value of `_scrollTop`.
+     * @type number
+     */
+    get _clampedScrollTop() {
+      return Math.max(0, this._scrollTop);
+    },
+
+    created: function() {
+      this._effectsRunFn = [];
+      this._effects = [];
+    },
+
+    detached: function() {
+      this._tearDownEffects();
+    },
+
+    /**
+     * Creates an effect object from an effect name and configuration that can be used to run
+     * effects programmatically.
+     *
+     * @method createEffect
+     * @param {string} effectName The name of an effect defined in `Polymer.AppLayout.scrollEffects`
+     * @param {Object=} effectConfig The effect config object if the effect accepts config
+     *   values. (Optional)
+     * @return {Object} The effect object. This object has the following interface:
+     *
+     *  * `obj.setUp()`, Sets up the requirements for the effect.
+     *       This function is called automatically before the `effect` function returns.
+     *  * `obj.run(progress, y)`, Runs the effect given a `progress`.
+     *  * `obj.tearDown()`, Cleans up any DOM nodes or element references used by the effect.
+     *
+     * Example:
+     * ```js
+     * var parallax = obj.createEffect('parallax-background');
+     * // runs the effect
+     * parallax.run(0.5, 0);
+     * ```
+     */
+    createEffect: function(effectName, effectConfig) {
+      var effectDef = Polymer.AppLayout.scrollEffects[effectName];
+      if (!effectDef) {
+        throw new ReferenceError('Scroll effect `' + effectName + '` is undefined');
+        return;
+      }
+      var prop = this._boundEffect(effectDef, effectConfig || {});
+      prop.setUp();
+      return prop;
+    },
+
+    /**
+     * Called when `effects` or `effectsConfig` changes.
+     */
+    _effectsChanged: function(effects, effectsConfig) {
+      this._tearDownEffects();
+
+      if (effects === '') {
+        return;
+      }
+      effects.split(' ').forEach(function(effectName) {
+        var effectDef;
+        if (effectName !== '') {
+          if ((effectDef = Polymer.AppLayout.scrollEffects[effectName])) {
+            this._effects.push(this._boundEffect(effectDef, effectsConfig[effectName]));
+          } else {
+            this._warn(this._logf('_effectsChanged', 'undefined effect `', effectName, '`'));
+          }
+        }
+      }, this);
+
+      this._setUpEffect();
+    },
+
+    /**
+     * Forces layout
+     */
+    _layoutIfDirty: function() {
+      return this.offsetWidth;
+    },
+
+    /**
+     * Returns an effect object bound to the current context.
+     *
+     * @param {Object}
+     * @param {Object=} The effect config object if the effect accepts config values. (Optional)
+     */
+    _boundEffect: function(effectDef, effectsConfig) {
+      effectsConfig = effectsConfig || {};
+      var startsAt = parseFloat(effectsConfig.startsAt || 0);
+      var endsAt = parseFloat(effectsConfig.endsAt || 1);
+      var deltaS = endsAt - startsAt;
+      var noop = Function();
+      // fast path if possible
+      var runFn = (startsAt === 0 && endsAt === 1) ? effectDef.run :
+        function(progress, y) {
+          effectDef.run.call(this,
+              Math.max(0, (progress - startsAt) / deltaS), y);
+        };
+      return {
+        setUp: effectDef.setUp ? effectDef.setUp.bind(this, effectsConfig) : noop,
+        run: effectDef.run ? runFn.bind(this) : noop,
+        tearDown: effectDef.tearDown ? effectDef.tearDown.bind(this) : noop
+      };
+    },
+
+    /**
+     * Sets up the effects.
+     */
+    _setUpEffect: function() {
+      if (this.isAttached) {
+        this._effectsRunFn = [];
+        this._effects.forEach(function(effectDef) {
+          // install the effect only if no error was reported
+          if (effectDef.setUp() !== false) {
+            this._effectsRunFn.push(effectDef.run);
+          }
+        }, this);
+      }
+    },
+
+    /**
+     * Tears down the effects.
+     */
+    _tearDownEffects: function() {
+      this._effects.forEach(function(effectDef) {
+        effectDef.tearDown();
+      });
+      this._effectsRunFn = [];
+      this._effects = [];
+    },
+
+    /**
+     * Runs the effects.
+     *
+     * @param {number} The progress
+     * @param {number} The top position of the current element relative to the viewport.
+     */
+    _runEffects: function(p, y) {
+      this._effectsRunFn.forEach(function(run) {
+        run(p, y);
+      });
+    },
+
+    /**
+     * Overrides the `_scrollHandler`.
+     */
+    _scrollHandler: function() {
+      if (!this.disabled) {
+        this._updateScrollState(this._clampedScrollTop);
+      }
+    }
+  }];
+
+</script><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<script>
+
+(function(scrollEffects) {
+  function interpolate(progress, points, fn, ctx) {
+    fn.apply(ctx, points.map(function(point) {
+      return point[0] + (point[1] - point[0]) * progress;
+    }));
+  }
+
+  /**
+   * While scrolling down, fade in the rear background layer and fade out the front background
+   * layer (opacity interpolated based on scroll position).
+   */
+  scrollEffects['blend-background'] = {
+    setUp: function setUp() {
+      this.$.backgroundFrontLayer.style.willChange = 'opacity';
+      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.willChange = 'opacity';
+      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.opacity = 0;
+    },
+    run: function run(p, y) {
+      this.$.backgroundFrontLayer.style.opacity = 1 - p;
+      this.$.backgroundRearLayer.style.opacity = p;
+    }
+  };
+
+  /**
+   * Upon scrolling past a threshold, fade in the rear background layer and fade out the front
+   * background layer (opacity CSS transitioned over time).
+   */
+  scrollEffects['fade-background'] = {
+    setUp: function setUp(config) {
+      var duration = config.duration || '0.5s';
+      this.$.backgroundFrontLayer.style.willChange = 'opacity';
+      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundFrontLayer.style.transitionProperty = 'opacity';
+      this.$.backgroundFrontLayer.style.transitionDuration = duration;
+      this.$.backgroundRearLayer.style.willChange = 'opacity';
+      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.transitionProperty = 'opacity';
+      this.$.backgroundRearLayer.style.transitionDuration = duration;
+    },
+    run: function run(p, y) {
+      if (p >= 1) {
+        this.$.backgroundFrontLayer.style.opacity = 0;
+        this.$.backgroundRearLayer.style.opacity = 1;
+      } else {
+        this.$.backgroundFrontLayer.style.opacity = 1;
+        this.$.backgroundRearLayer.style.opacity = 0;
+      }
+    }
+  };
+
+  /**
+   * Vertically translate the background based on a factor of the scroll position.
+   */
+  scrollEffects['parallax-background'] = {
+    setUp: function setUp(config) {
+      var scalar = parseFloat(config.scalar);
+      this._deltaBg = this.$.backgroundFrontLayer.offsetHeight - this.$.background.offsetHeight;
+      if (this._deltaBg === 0) {
+        if (isNaN(scalar)) {
+          scalar = 0.8;
+        }
+        this._deltaBg = this._deltaHeight * scalar;
+      } else {
+        if (isNaN(scalar)) {
+          scalar = 1;
+        }
+        this._deltaBg = this._deltaBg * scalar;
+      }
+    },
+    tearDown: function() {
+      delete this._deltaBg;
+    },
+    run: function run(p, y) {
+      this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundFrontLayer);
+      if (this.$.backgroundRearLayer) {
+        this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundRearLayer);
+      }
+    }
+  };
+
+  /**
+   * Transform the font size of a designated title element between two values based on the scroll
+   * position.
+   */
+  scrollEffects['resize-title'] = {
+    setUp: function setUp() {
+      var title = Polymer.dom(this).querySelector('[title]');
+      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+
+      if (!condensedTitle) {
+        this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
+        return false;
+      }
+      if (!title) {
+        this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
+        return false;
+      }
+
+      condensedTitle.style.willChange = 'opacity';
+      title.style.willChange = 'opacity';
+
+      condensedTitle.style.webkitTransform = 'translateZ(0)';
+      title.style.webkitTransform = 'translateZ(0)';
+
+      var titleClientRect = title.getBoundingClientRect();
+      var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
+      var fx = {};
+
+      fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
+          parseInt(window.getComputedStyle(title)['font-size'], 10);
+      fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
+      fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
+      fx.condensedTitle = condensedTitle;
+      fx.title = title;
+
+      this._fxResizeTitle = fx;
+    },
+    tearDown: function tearDown() {
+      delete this._fxResizeTitle;
+    },
+    run: function run(p, y) {
+      var fx = this._fxResizeTitle;
+      if (!this.condenses) {
+        y = 0;
+      }
+      if (p >= 1) {
+        fx.title.style.opacity = 0;
+        fx.condensedTitle.style.opacity = 1;
+      } else {
+        fx.title.style.opacity = 1;
+        fx.condensedTitle.style.opacity = 0;
+      }
+      interpolate(Math.min(1, p), [
+        [1,  fx.scale],
+        [0, -fx.titleDX],
+        [y, y-fx.titleDY]
+      ],
+      function(scale, translateX, translateY) {
+        this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
+            'scale3d(' + scale + ', ' + scale + ', 1)',
+            fx.title);
+      }, this);
+    }
+  };
+
+  /**
+   * Upon scrolling past a threshold, CSS transition the font size of a designated title element
+   * between two values.
+   */
+  scrollEffects['resize-snapped-title'] = {
+    setUp: function setUp(config) {
+      var title = Polymer.dom(this).querySelector('[title]');
+      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+      var duration = config.duration || '0.2s';
+      var fx = {};
+
+      if (!condensedTitle) {
+        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `condensed-title`'));
+        return false;
+      }
+      if (!title) {
+        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `title`'));
+        return false;
+      }
+
+      title.style.transitionProperty = 'opacity';
+      title.style.transitionDuration = duration;
+      condensedTitle.style.transitionProperty = 'opacity';
+      condensedTitle.style.transitionDuration = duration;
+
+      fx.condensedTitle = condensedTitle;
+      fx.title = title;
+      this._fxResizeSnappedTitle = fx;
+    },
+    tearDown: function tearDown() {
+      var fx = this._fxResizeSnappedTitle;
+      fx.title.style.transition = '';
+      fx.condensedTitle.style.transition = '';
+      delete this._fxResizeSnappedTitle;
+    },
+    run: function run(p, y) {
+      var fx = this._fxResizeSnappedTitle;
+      if (p > 0) {
+        fx.title.style.opacity = 0;
+        fx.condensedTitle.style.opacity = 1;
+      } else {
+        fx.title.style.opacity = 1;
+        fx.condensedTitle.style.opacity = 0;
+      }
+    }
+  };
+
+  /**
+   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
+   * between the element and the content underneath.
+   */
+  scrollEffects.waterfall = {
+    run: function run(p, y) {
+      this.shadow = this.isOnScreen() && this.isContentBelow();
+    }
+  };
+
+  /**
+   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
+   */
+  scrollEffects.material = {
+    setUp: function() {
+      this.effects = 'waterfall resize-title blend-background parallax-background';
+      return false;
+    }
+  };
+
+})(Polymer.AppLayout.scrollEffects);
+
+</script><!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+-->
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-header is container element for app-toolbars at the top of the screen that can have scroll
+effects - visual effects based on scroll position. By default, an app-header moves away from
+the viewport when scrolling down and if using `reveals`, the header slides back when scrolling
+back up. For example,
+
+```html
+<app-header reveals>
+  <app-toolbar>
+    <div title>App name</div>
+  </app-toolbar>
+</app-header>
+```
+
+app-header can also condense when scrolling down. To achieve this behavior, the header
+must have a larger height than the first toolbar in the light DOM. For example,
+
+```html
+<app-header style="height: 96px;" condenses fixed>
+  <app-toolbar style="height: 64px;">
+    <div title>App name</div>
+  </app-toolbar>
+</app-header>
+```
+
+Notice that when the header is condensed its height is `64px`, whereas the height is 96px
+if the user scrolls back up to the top.
+
+## Scroll effects
+The following effects can be installed via the `effects` property:
+
+* **blend-background**
+While scrolling down, fade in the rear background layer and fade out the front 
+background layer (opacity interpolated based on scroll position).
+
+* **fade-background**
+Upon scrolling past a threshold, fade in the rear background layer and fade out
+the front background layer (opacity CSS transitioned over time).
+
+* **parallax-background**
+Vertically translate the background based on a factor of the scroll position.
+
+* **resize-title** 
+Transform the font size of a designated title element between two values based 
+on the scroll position.
+
+* **resize-snapped-title**
+Upon scrolling past a threshold, CSS transition the font size of a designated
+title element between two values.
+
+* **waterfall**
+Toggles the shadow property in app-header when content is scrolled to create
+a sense of depth between the element and the content underneath.
+
+* **material**
+Shorthand for the waterfall, resize-title, blend-background, and parallax-background 
+effects.
+
+## Styling
+
+Mixin | Description | Default
+----------------|-------------|----------
+`--app-header-background-front-layer` | Applies to the front layer of the background | {}
+`--app-header-background-rear-layer` | Applies to the rear layer of the background | {}
+
+@demo app-header/demo/demo1.html
+@demo app-header/demo/demo2.html
+@demo app-header/demo/demo3.html
+@demo app-header/demo/music.html
+@demo app-header/demo/notes.html
+@demo app-header/demo/pesto.html
+@demo app-header/demo/give.html
+
+-->
+
 <dom-module id="app-header" assetpath="../../app-header/">
   <style>
 
@@ -17616,7 +17670,15 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
     :host([disabled])::after,
     :host([disabled]) #backgroundFrontLayer,
     :host([disabled]) #backgroundRearLayer,
-    :host([disabled]) ::content > app-toolbar:first-of-type {
+    :host([disabled]) ::content > app-toolbar:first-of-type,
+    :host([disabled]) ::content > [primary],
+    /* Silent scrolling should not run CSS transitions */
+    :host-context(.app-layout-silent-scroll),
+    :host-context(.app-layout-silent-scroll)::after,
+    :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
+    :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
+    :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
+    :host-context(.app-layout-silent-scroll) ::content > [primary] {
       transition: none !important;
     }
 
@@ -17944,6 +18006,52 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-header-layout is a wrapper element that positions an app-header and other content. This
+element uses the document scroll by default, but it can also define its own scrolling region.
+
+Using the document scroll:
+
+```html
+<app-header-layout>
+  <app-header fixed condenses effects="waterfall">
+    <app-toolbar>
+      <div title>App name</div>
+    </app-toolbar>
+  </app-header>
+  <div>
+    <!\-\- content goes here \-\->
+  </div>
+</app-header-layout>
+```
+
+Using an own scrolling region:
+
+```html
+<app-header-layout has-scrolling-region style="width: 300px; height: 400px;">
+  <app-header fixed condenses effects="waterfall">
+    <app-toolbar>
+      <div title>App name</div>
+    </app-toolbar>
+  </app-header>
+  <div>
+    <!\-\- content goes here \-\->
+  </div>
+</app-header-layout>
+```
+
+@demo app-header-layout/demo1.html
+@demo app-header-layout/demo2.html
+-->
+
 <dom-module id="app-header-layout" assetpath="../../app-header-layout/">
 
   <style>
@@ -18098,6 +18206,50 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-toolbar is a horizontal toolbar containing items that can be used for
+label, navigation, search and actions.
+
+Example:
+
+Add a title to the toolbar.
+
+```html
+<app-toolbar>
+  <div title>App name</div>
+</app-toolbar>
+```
+
+Add a button to the left and right side of the toolbar.
+
+```html
+<app-toolbar>
+  <paper-icon-button icon="menu"></paper-icon-button>
+  <div title>App name</div>
+  <paper-icon-button icon="search"></paper-icon-button>
+</app-toolbar>
+```
+
+You can use the attributes `top-item` or `bottom-item` to completely fit an element
+to the top or bottom of the toolbar respectively.
+
+### Styling
+
+Custom property              | Description                  | Default
+-----------------------------|------------------------------|-----------------------
+`--app-toolbar-font-size`    | Toolbar font size            | 20px
+
+@demo app-toolbar/demo.html
+-->
+
 <dom-module id="app-toolbar" assetpath="../../app-toolbar/">
 
   <template>
@@ -18164,6 +18316,52 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+app-scrollpos-control is a manager for saving and restoring the scroll position when multiple
+pages are sharing the same document scroller.
+
+Example:
+
+```html
+<app-scrollpos-control selected="{{page}}"></app-scrollpos-control>
+
+<app-drawer-layout>
+
+  <app-drawer>
+    <paper-menu selected="{{page}}">
+      <paper-item>Home</paper-item>
+      <paper-item>About</paper-item>
+      <paper-item>Schedule</paper-item>
+      <paper-item>Account</paper-item>
+    </paper-menu>
+  </app-drawer>
+
+  <div>
+    <app-toolbar>
+      <paper-icon-button icon="menu" drawer-toggle></paper-icon-button>
+    </app-toolbar>
+    <iron-pages selected="{{page}}">
+      <sample-content size="100"></sample-content>
+      <sample-content size="100"></sample-content>
+      <sample-content size="100"></sample-content>
+      <sample-content size="100"></sample-content>
+    </iron-pages>
+  </div>
+
+</app-drawer-layout>
+```
+
+@demo app-scrollpos-control/demo.html
+-->
+
 <dom-module id="app-scrollpos-control" assetpath="../../app-scrollpos-control/">
 
   <script>
@@ -18218,9 +18416,11 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
       },
 
       _scrollTo: function(x, y) {
-        this.async(function() {
-          window.scrollTo(x, y);
-        }, 1);
+        Polymer.AppLayout.scroll({
+          left: x,
+          top: y,
+          behavior: 'silent'
+        });
       }
 
     });
@@ -18228,7 +18428,15 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
-<dom-module id="article-headline" assetpath="src/">
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><dom-module id="article-headline" assetpath="src/">
 
   <template>
 
@@ -18284,14 +18492,219 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
-<iron-iconset-svg name="app" size="24">
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><script>
+  /**
+   * The `iron-iconset-svg` element allows users to define their own icon sets
+   * that contain svg icons. The svg icon elements should be children of the
+   * `iron-iconset-svg` element. Multiple icons should be given distinct id's.
+   *
+   * Using svg elements to create icons has a few advantages over traditional
+   * bitmap graphics like jpg or png. Icons that use svg are vector based so
+   * they are resolution independent and should look good on any device. They
+   * are stylable via css. Icons can be themed, colorized, and even animated.
+   *
+   * Example:
+   *
+   *     <iron-iconset-svg name="my-svg-icons" size="24">
+   *       <svg>
+   *         <defs>
+   *           <g id="shape">
+   *             <rect x="12" y="0" width="12" height="24" />
+   *             <circle cx="12" cy="12" r="12" />
+   *           </g>
+   *         </defs>
+   *       </svg>
+   *     </iron-iconset-svg>
+   *
+   * This will automatically register the icon set "my-svg-icons" to the iconset
+   * database.  To use these icons from within another element, make a
+   * `iron-iconset` element and call the `byId` method
+   * to retrieve a given iconset. To apply a particular icon inside an
+   * element use the `applyIcon` method. For example:
+   *
+   *     iconset.applyIcon(iconNode, 'car');
+   *
+   * @element iron-iconset-svg
+   * @demo demo/index.html
+   * @implements {Polymer.Iconset}
+   */
+  Polymer({
+    is: 'iron-iconset-svg',
+
+    properties: {
+
+      /**
+       * The name of the iconset.
+       */
+      name: {
+        type: String,
+        observer: '_nameChanged'
+      },
+
+      /**
+       * The size of an individual icon. Note that icons must be square.
+       */
+      size: {
+        type: Number,
+        value: 24
+      }
+
+    },
+
+    attached: function() {
+      this.style.display = 'none';
+    },
+
+    /**
+     * Construct an array of all icon names in this iconset.
+     *
+     * @return {!Array} Array of icon names.
+     */
+    getIconNames: function() {
+      this._icons = this._createIconMap();
+      return Object.keys(this._icons).map(function(n) {
+        return this.name + ':' + n;
+      }, this);
+    },
+
+    /**
+     * Applies an icon to the given element.
+     *
+     * An svg icon is prepended to the element's shadowRoot if it exists,
+     * otherwise to the element itself.
+     *
+     * @method applyIcon
+     * @param {Element} element Element to which the icon is applied.
+     * @param {string} iconName Name of the icon to apply.
+     * @return {?Element} The svg element which renders the icon.
+     */
+    applyIcon: function(element, iconName) {
+      // insert svg element into shadow root, if it exists
+      element = element.root || element;
+      // Remove old svg element
+      this.removeIcon(element);
+      // install new svg element
+      var svg = this._cloneIcon(iconName);
+      if (svg) {
+        var pde = Polymer.dom(element);
+        pde.insertBefore(svg, pde.childNodes[0]);
+        return element._svgIcon = svg;
+      }
+      return null;
+    },
+
+    /**
+     * Remove an icon from the given element by undoing the changes effected
+     * by `applyIcon`.
+     *
+     * @param {Element} element The element from which the icon is removed.
+     */
+    removeIcon: function(element) {
+      // Remove old svg element
+      if (element._svgIcon) {
+        Polymer.dom(element).removeChild(element._svgIcon);
+        element._svgIcon = null;
+      }
+    },
+
+    /**
+     *
+     * When name is changed, register iconset metadata
+     *
+     */
+    _nameChanged: function() {
+      new Polymer.IronMeta({type: 'iconset', key: this.name, value: this});
+      this.async(function() {
+        this.fire('iron-iconset-added', this, {node: window});
+      });
+    },
+
+    /**
+     * Create a map of child SVG elements by id.
+     *
+     * @return {!Object} Map of id's to SVG elements.
+     */
+    _createIconMap: function() {
+      // Objects chained to Object.prototype (`{}`) have members. Specifically,
+      // on FF there is a `watch` method that confuses the icon map, so we
+      // need to use a null-based object here.
+      var icons = Object.create(null);
+      Polymer.dom(this).querySelectorAll('[id]')
+        .forEach(function(icon) {
+          icons[icon.id] = icon;
+        });
+      return icons;
+    },
+
+    /**
+     * Produce installable clone of the SVG element matching `id` in this
+     * iconset, or `undefined` if there is no matching element.
+     *
+     * @return {Element} Returns an installable clone of the SVG element
+     * matching `id`.
+     */
+    _cloneIcon: function(id) {
+      // create the icon map on-demand, since the iconset itself has no discrete
+      // signal to know when it's children are fully parsed
+      this._icons = this._icons || this._createIconMap();
+      return this._prepareSvgClone(this._icons[id], this.size);
+    },
+
+    /**
+     * @param {Element} sourceSvg
+     * @param {number} size
+     * @return {Element}
+     */
+    _prepareSvgClone: function(sourceSvg, size) {
+      if (sourceSvg) {
+        var content = sourceSvg.cloneNode(true),
+            svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'),
+            viewBox = content.getAttribute('viewBox') || '0 0 ' + size + ' ' + size;
+        svg.setAttribute('viewBox', viewBox);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        // TODO(dfreedm): `pointer-events: none` works around https://crbug.com/370136
+        // TODO(sjmiles): inline style may not be ideal, but avoids requiring a shadow-root
+        svg.style.cssText = 'pointer-events: none; display: block; width: 100%; height: 100%;';
+        svg.appendChild(content).removeAttribute('id');
+        return svg;
+      }
+      return null;
+    }
+
+  });
+</script>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><iron-iconset-svg name="app" size="24">
 <svg><defs>
 <g id="menu"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></g>
 <g id="arrow-back"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"></path></g>
 <g id="googleplus-reshare"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"></path><path fill="none" d="M0 0h24v24H0z"></path></g>
 </defs></svg>
 </iron-iconset-svg>
-<dom-module id="article-detail" assetpath="src/">
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><dom-module id="article-detail" assetpath="src/">
 
   <template>
 
@@ -18396,6 +18809,28 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><!--
+This is a simple adaptive 2-columns grid. The first and every 4th item have width:100%, and the
+rest of the items have width equals to the column width (`columnWidth` in px). The grid will reflow
+to single column when 2 columns (plus a defined gutter margin) no longer fit on screen.
+
+    <two-columns-grid column-width="320" gutter="16">
+      <div class="card"></div>
+      <div class="card"></div>
+      <div class="card"></div>
+      <div class="card"></div>
+      <div class="card"></div>
+    </two-columns-grid>
+
+-->
 <dom-module id="two-columns-grid" assetpath="src/">
 
   <template>
@@ -18510,7 +18945,15 @@ to single column when 2 columns (plus a defined gutter margin) no longer fit on 
   </script>
 
 </dom-module>
-<dom-module id="blog-app" assetpath="src/">
+<!--
+@license
+Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
+The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
+The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
+Code distributed by Google as part of the polymer project is also
+subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
+--><dom-module id="blog-app" assetpath="src/">
 
   <template>
 
