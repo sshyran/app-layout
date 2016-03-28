@@ -1,8 +1,11 @@
 # App Layout [![Build Status](https://travis-ci.org/PolymerLabs/app-layout.svg?branch=master)](https://travis-ci.org/PolymerLabs/app-layout)
 
-http://polymerlabs.github.io/app-layout/
 
-A set of experimental layout elements for your app. It includes:
+<img src="https://app-layout-assets.appspot.com/assets/docs/app-layout.png" width="300" height="210">
+
+https://polymerlabs.github.io/app-layout/
+
+A set of layout elements for your app. It includes:
 
 - [app-toolbar](/app-toolbar) - A horizontal toolbar containing items that can be used for label, navigation, search and actions.
 
