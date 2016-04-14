@@ -11463,7 +11463,20 @@ milliseconds.
         url = new URL(href);
       }
 
-      if (url.origin !== window.location.origin) {
+      var origin;
+
+      // IE Polyfill
+      if (window.location.origin) {
+        origin = window.location.origin;
+      } else {
+        origin = window.location.protocol + '//' + window.location.hostname;
+
+        if (window.location.port) {
+          origin += ':' + window.location.port;
+        }
+      }
+
+      if (url.origin !== origin) {
         return null;
       }
       var normalizedHref = url.pathname + url.search + url.hash;
@@ -11561,17 +11574,25 @@ creating bespoke routing solutions from scratch. To simply include routing in
 an app, please refer to [carbon-location](https://github.com/PolymerElements/carbon-route/blob/master/carbon-location.html)
 and [carbon-route](https://github.com/PolymerElements/carbon-route/blob/master/carbon-route.html).
 
-An example of a route element that describes
-`https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`:
+An example of a route object that describes
+`https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`
+and should be passed to other `carbon-route` elements:
 
     {
       prefix: '',
       path: '/elements/carbon-route-converter',
-      queryParams: {
+      __queryParams: {
         foo: 'bar',
         baz: 'qux'
       }
     }
+
+`__queryParams` is private to discourage directly data-binding to it. This is so
+that routing elements like `carbon-route` can intermediate changes to the query
+params and choose whether to propagate them upstream or not. `carbon-route` for
+example will not propagate changes to its `queryParams` property if it is not
+currently active. A public queryParams object will also be produced in which you
+should perform data-binding operations.
 
 Example Usage:
 
@@ -11611,6 +11632,8 @@ turn is consumed by the `carbon-route`.
        *
        * A route object is the kernel of the routing system. It is intended to
        * be fed into consuming elements such as `carbon-route`.
+       *
+       * @type {?Object}
        */
       route: {
         type: Object,
@@ -11621,6 +11644,8 @@ turn is consumed by the `carbon-route`.
       /**
        * A set of key/value pairs that are universally accessible to branches of
        * the route tree.
+       *
+       * @type {?Object}
        */
       queryParams: {
         type: Object,
@@ -11703,7 +11728,7 @@ occur, `carbon-location` produces and updates an object called `route`. This
 `route` object is suitable for passing into a `carbon-route`, and other similar
 elements.
 
-An example of a route object that describes the URL
+An example of the public API of a route object that describes the URL
 `https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`:
 
     {
@@ -11783,7 +11808,7 @@ In the above example, there are two `carbon-route` elements. The first
 `carbon-route` consumes a `route`. When the `route` is matched, the first
 `carbon-route` also produces `routeData` from its `data`, and `subroute` from
 its `tail`. The second `carbon-route` consumes the `subroute`, and when it
-matches, it produces an object called `subrouteData` from its `tail`.
+matches, it produces an object called `subrouteData` from its `data`.
 
 So, when `route.path` is `'/about'`, the `routeData` object will look like
 this: `{ page: 'about' }`
@@ -11840,6 +11865,9 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         notify: true
       },
 
+      /**
+       * @type {?Object}
+       */
       queryParams: {
         type: Object,
         value: function() {
@@ -11864,9 +11892,14 @@ the `carbon-route` will update `route.path`. This in-turn will update the
       },
 
       _skipMatch: {
+        type: Boolean,
         value: false
       },
+      /**
+       * @type {?string}
+       */
       _matched: {
+        type: String,
         value: ''
       }
     },
@@ -11885,6 +11918,17 @@ the `carbon-route` will update `route.path`. This in-turn will update the
       this.linkPaths('tail.__queryParams', 'route.__queryParams');
     },
 
+    // IE Object.assign polyfill
+    __assign: function(target, source) {
+      if (source != null) {
+        for (var key in source) {
+          target[key] = source[key];
+        }
+      }
+
+      return target;
+    },
+
     // Deal with the query params object being assigned to wholesale
     __routeQueryParamsChanged: function(queryParams) {
       if (queryParams && this.tail) {
@@ -11895,7 +11939,16 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         }
 
         this._skipMatch = true;
-        this.set('queryParams', Object.assign({}, queryParams));
+
+        var qp;
+
+        if (Object.assign) {
+          qp = Object.assign({}, queryParams);
+        } else {
+          qp = this.__assign({}, queryParams);
+        }
+
+        this.set('queryParams', qp);
         this._skipMatch = false;
       }
     },
@@ -11959,7 +12012,7 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         }
       }
 
-      var matched = matched.join('/');
+      matched = matched.join('/');
       var tailPath = remainingPieces.join('/');
       if (remainingPieces.length > 0) {
         tailPath = '/' + tailPath;
@@ -12807,6 +12860,15 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
       },
 
       /**
+       * Default fallback if the selection based on selected with `attrForSelected`
+       * is not found.
+       */
+      fallbackSelection: {
+        type: String,
+        value: null
+      },
+
+      /**
        * The list of items from which a selection can be made.
        */
       items: {
@@ -12836,7 +12898,8 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
 
     observers: [
       '_updateAttrForSelected(attrForSelected)',
-      '_updateSelected(selected)'
+      '_updateSelected(selected)',
+      '_checkFallback(fallbackSelection)'
     ],
 
     created: function() {
@@ -12922,6 +12985,12 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
       return this.selected != null;
     },
 
+    _checkFallback: function() {
+      if (this._shouldUpdateSelection) {
+        this._updateSelected();
+      }
+    },
+
     _addListener: function(eventName) {
       this.listen(this, eventName, '_activateHandler');
     },
@@ -12943,7 +13012,7 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
 
     _updateAttrForSelected: function() {
       if (this._shouldUpdateSelection) {
-        this.selected = this._indexToValue(this.indexOf(this.selectedItem));        
+        this.selected = this._indexToValue(this.indexOf(this.selectedItem));
       }
     },
 
@@ -12953,6 +13022,11 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
 
     _selectSelected: function(selected) {
       this._selection.select(this._valueToItem(this.selected));
+      // Check for items, since this array is populated only when attached
+      // Since Number(0) is falsy, explicitly check for undefined
+      if (this.fallbackSelection && this.items.length && (this._selection.get() === undefined)) {
+        this.selected = this.fallbackSelection;
+      }
     },
 
     _filterItem: function(node) {
@@ -13143,7 +13217,7 @@ Example:
         Polymer.IronSelectableBehavior._updateAttrForSelected.apply(this);
       } else if (this._shouldUpdateSelection) {
         this.selectedValues = this.selectedItems.map(function(selectedItem) {
-          return this._indexToValue(this.indexOf(selectedItem));        
+          return this._indexToValue(this.indexOf(selectedItem));
         }, this).filter(function(unfilteredValue) {
           return unfilteredValue != null;
         }, this);
@@ -13166,6 +13240,13 @@ Example:
         // select only those not selected yet
         for (var i = 0; i < selectedItems.length; i++) {
           this._selection.setItemSelected(selectedItems[i], true);
+        }
+        // Check for items, since this array is populated only when attached
+        if (this.fallbackSelection && this.items.length && !this._selection.get().length) {
+          var fallback = this._valueToItem(this.fallbackSelection);
+          if (fallback) {
+            this.selectedValues = [this.fallbackSelection];
+          }
         }
       } else {
         this._selection.clear();
@@ -13190,7 +13271,6 @@ Example:
       } else {
         this.splice('selectedValues',i,1);
       }
-      this._selection.setItemSelected(this._valueToItem(value), unselected);
     },
 
     _valuesToItems: function(values) {
@@ -13232,6 +13312,20 @@ Example:
         <div name="bar">Bar</div>
         <div name="zot">Zot</div>
       </iron-selector>
+
+  If no matching element is found using `attForSelected`, use `fallbackSelection` as fallback.
+
+  Example:
+
+        <iron-selector attr-for-selected="name" selected="non-existing"
+                       fallback-selection="default">
+          <div name="foo">Foo</div>
+          <div name="bar">Bar</div>
+          <div name="default">Default</div>
+        </iron-selector>
+
+  Note: When the selector is multi, the selection will set to `fallbackSelection` iff
+  the number of matching elements is zero.
 
   `iron-selector` is not styled. Use the `iron-selected` CSS class to style the selected element.
 
@@ -13736,6 +13830,13 @@ Custom property | Description | Default
     var SPACE_KEY = /^space(bar)?/;
 
     /**
+     * Matches ESC key.
+     *
+     * Value from: http://w3c.github.io/uievents-key/#key-Escape
+     */
+    var ESC_KEY = /^escape$/;
+
+    /**
      * Transforms the key.
      * @param {string} key The KeyBoardEvent.key
      * @param {Boolean} [noSpecialChars] Limits the transformation to
@@ -13747,6 +13848,8 @@ Custom property | Description | Default
         var lKey = key.toLowerCase();
         if (lKey === ' ' || SPACE_KEY.test(lKey)) {
           validKey = 'space';
+        } else if (ESC_KEY.test(lKey)) {
+          validKey = 'esc';
         } else if (lKey.length == 1) {
           if (!noSpecialChars || KEY_CHAR.test(lKey)) {
             validKey = lKey;
@@ -13790,10 +13893,10 @@ Custom property | Description | Default
           validKey = 'f' + (keyCode - 112);
         } else if (keyCode >= 48 && keyCode <= 57) {
           // top 0-9 keys
-          validKey = String(48 - keyCode);
+          validKey = String(keyCode - 48);
         } else if (keyCode >= 96 && keyCode <= 105) {
           // num pad 0-9
-          validKey = String(96 - keyCode);
+          validKey = String(keyCode - 96);
         } else {
           validKey = KEY_CODE[keyCode];
         }
@@ -13958,6 +14061,13 @@ Custom property | Description | Default
         this._resetKeyEventListeners();
       },
 
+      /**
+       * Returns true if a keyboard event matches `eventString`.
+       *
+       * @param {KeyboardEvent} event
+       * @param {string} eventString
+       * @return {boolean}
+       */
       keyboardEventMatchesKeys: function(event, eventString) {
         var keyCombos = parseEventString(eventString);
         for (var i = 0; i < keyCombos.length; ++i) {
@@ -15102,6 +15212,18 @@ focus as well by setting its tabindex to -1.
       <paper-item raised>Polymer Project</paper-item>
     </a>
 
+If you are concerned about performance and want to use `paper-item` in a `paper-listbox`
+with many items, you can just use a native `button` with the `paper-item` class
+applied (provided you have correctly included the shared styles):
+
+    <style is="custom-style" include="paper-item-shared-styles"></style>
+
+    <paper-listbox>
+      <button class="paper-item" role="option">Inbox</button>
+      <button class="paper-item" role="option">Starred</button>
+      <button class="paper-item" role="option">Sent mail</button>
+    </paper-listbox>
+
 ### Styling
 
 The following custom properties and mixins are available for styling:
@@ -15608,7 +15730,6 @@ Example:
 
 </script>
 <!--
-
 app-drawer is a navigation drawer that can slide in from the left or right.
 
 Example:
@@ -16075,11 +16196,18 @@ Using an own scrolling region:
    *
    * ### Importing the app-layout effects
    *
-   * app-layout provides a set of scroll effects that can be used by explicitly importing 
+   * app-layout provides a set of scroll effects that can be used by explicitly importing
    * `app-scroll-effects.html`:
    *
    * ```html
    * <link rel="import" href="/bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+   * ```
+   *
+   * The scroll effects can also be used by individually importing
+   * `app-layout/app-scroll-effects/effects/[effectName].html`. For example:
+   *
+   * ```html
+   *  <link rel="import" href="/bower_components/app-layout/app-scroll-effects/effects/waterfall.html">
    * ```
    *
    * ### Consuming effects
@@ -16205,7 +16333,6 @@ Using an own scrolling region:
      * Updates the scroll state. This method should be overridden
      * by the consumer of this behavior.
      *
-     * @abstract
      * @method _updateScrollState
      */
     _updateScrollState: function() {},
@@ -16290,7 +16417,6 @@ Using an own scrolling region:
       var effectDef = Polymer.AppLayout.scrollEffects[effectName];
       if (!effectDef) {
         throw new ReferenceError(this._getUndefinedMsg(effectName));
-        return;
       }
       var prop = this._boundEffect(effectDef, effectConfig || {});
       prop.setUp();
@@ -16330,8 +16456,8 @@ Using an own scrolling region:
     /**
      * Returns an effect object bound to the current context.
      *
-     * @param {Object}
-     * @param {Object=} The effect config object if the effect accepts config values. (Optional)
+     * @param {Object} effectDef
+     * @param {Object=} effectsConfig The effect config object if the effect accepts config values. (Optional)
      */
     _boundEffect: function(effectDef, effectsConfig) {
       effectsConfig = effectsConfig || {};
@@ -16381,8 +16507,8 @@ Using an own scrolling region:
     /**
      * Runs the effects.
      *
-     * @param {number} The progress
-     * @param {number} The top position of the current element relative to the viewport.
+     * @param {number} p The progress
+     * @param {number} y The top position of the current element relative to the viewport.
      */
     _runEffects: function(p, y) {
       this._effectsRunFn.forEach(function(run) {
@@ -16400,15 +16526,14 @@ Using an own scrolling region:
     },
 
     _getUndefinedMsg: function(effectName) {
-      return 'Scroll effect `' + effectName +
-          '` is undefined. Did you forget to import the effects?';
+      return 'Scroll effect `' + effectName + '` is undefined. ' +
+          'Did you forget to import app-layout/app-scroll-effects/effects/' + effectName + '.html ?';
     }
 
   }];
 
 </script>
 <!--
-
 app-header is container element for app-toolbars at the top of the screen that can have scroll
 effects. By default, an app-header moves away from the viewport when scrolling down and
 if using `reveals`, the header slides back when scrolling back up. For example:
@@ -16483,7 +16608,7 @@ or when the scrollable element is scrolled to the top.
 ## Scroll effects
 
 Scroll effects are _optional_ visual effects applied in app-header based on scroll position. For example,
-The [Material Design scrollig techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
+The [Material Design scrolling techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
 recommends effects that can be installed via the `effects` property. e.g.
 
 ```html
@@ -17465,11 +17590,10 @@ CSS properties               | Action
      */
     this._backdropElement = null;
 
-    // Enable document-wide tap recognizer.
-    Polymer.Gestures.add(document, 'tap', null);
-    // We should be using only 'tap', but this would be a breaking change.
-    var tapEvent = ('ontouchstart' in window) ? 'tap' : 'click';
-    document.addEventListener(tapEvent, this._onCaptureClick.bind(this), true);
+    // Listen to mousedown or touchstart to be sure to be the first to capture
+    // clicks outside the overlay.
+    var clickEvent = ('ontouchstart' in window) ? 'touchstart' : 'mousedown';
+    document.addEventListener(clickEvent, this._onCaptureClick.bind(this), true);
     document.addEventListener('focus', this._onCaptureFocus.bind(this), true);
     document.addEventListener('keydown', this._onCaptureKeyDown.bind(this), true);
   };
@@ -17512,8 +17636,12 @@ CSS properties               | Action
     _bringOverlayAtIndexToFront: function(i) {
       var overlay = this._overlays[i];
       var lastI = this._overlays.length - 1;
+      // Ensure always-on-top overlay stays on top.
+      if (!overlay.alwaysOnTop && this._overlays[lastI].alwaysOnTop) {
+        lastI--;
+      }
       // If already the top element, return.
-      if (!overlay || i === lastI) {
+      if (!overlay || i >= lastI) {
         return;
       }
       // Update z-index to be on top.
@@ -17546,6 +17674,7 @@ CSS properties               | Action
 
     /**
      * Tracks overlays for z-index and focus management.
+     * Ensures the last added overlay with always-on-top remains on top.
      * @param {Element} overlay
      */
     addOverlay: function(overlay) {
@@ -17554,12 +17683,28 @@ CSS properties               | Action
         this._bringOverlayAtIndexToFront(i);
         return;
       }
-      var minimumZ = Math.max(this.currentOverlayZ(), this._minimumZ);
-      this._overlays.push(overlay);
-      var newZ = this.currentOverlayZ();
+      var insertionIndex = this._overlays.length;
+      var currentOverlay = this._overlays[insertionIndex - 1];
+      var minimumZ = Math.max(this._getZ(currentOverlay), this._minimumZ);
+      var newZ = this._getZ(overlay);
+
+      // Ensure always-on-top overlay stays on top.
+      if (currentOverlay && currentOverlay.alwaysOnTop && !overlay.alwaysOnTop) {
+        // This bumps the z-index of +2.
+        this._applyOverlayZ(currentOverlay, minimumZ);
+        insertionIndex--;
+        // Update minimumZ to match previous overlay's z-index.
+        var previousOverlay = this._overlays[insertionIndex - 1];
+        minimumZ = Math.max(this._getZ(previousOverlay), this._minimumZ);
+      }
+
+      // Update z-index and insert overlay.
       if (newZ <= minimumZ) {
         this._applyOverlayZ(overlay, minimumZ);
       }
+      this._overlays.splice(insertionIndex, 0, overlay);
+
+      // Get focused node.
       var element = this.deepActiveElement;
       overlay.restoreFocusNode = this._overlayParent(element) ? null : element;
     },
@@ -17573,7 +17718,6 @@ CSS properties               | Action
         return;
       }
       this._overlays.splice(i, 1);
-      this._setZ(overlay, '');
 
       var node = overlay.restoreFocusOnClose ? overlay.restoreFocusNode : null;
       overlay.restoreFocusNode = null;
@@ -17673,7 +17817,7 @@ CSS properties               | Action
     _getZ: function(overlay) {
       var z = this._minimumZ;
       if (overlay) {
-        var z1 = Number(window.getComputedStyle(overlay).zIndex);
+        var z1 = Number(overlay.style.zIndex || window.getComputedStyle(overlay).zIndex);
         // Check if is a number
         // Number.isNaN not supported in IE 10+
         if (z1 === z1) {
@@ -17721,7 +17865,7 @@ CSS properties               | Action
 
     /**
      * Returns the deepest overlay in the path.
-     * @param {?Array<Element>} path
+     * @param {Array<Element>=} path
      * @return {Element|undefined}
      * @private
      */
@@ -17795,6 +17939,9 @@ Custom property | Description | Default
 -->
 
 <script>
+// IIFE to help scripts concatenation.
+(function() {
+'use strict';
 
 /**
 Use `Polymer.IronOverlayBehavior` to implement an element that can be hidden or shown, and displays
@@ -17907,6 +18054,13 @@ context. You should place this element as a child of `<body>` whenever possible.
       },
 
       /**
+       * Set to true to keep overlay always on top.
+       */
+      alwaysOnTop: {
+        type: Boolean
+      },
+
+      /**
        * Shortcut to access to the overlay manager.
        * @private
        * @type {Polymer.IronOverlayManagerClass}
@@ -18006,6 +18160,10 @@ context. You should place this element as a child of `<body>` whenever possible.
       this.__shouldRemoveTabIndex = false;
       // Used for wrapping the focus on TAB / Shift+TAB.
       this.__firstFocusableNode = this.__lastFocusableNode = null;
+      // Used for requestAnimationFrame when opened changes.
+      this.__openChangedAsync = null;
+      // Used for requestAnimationFrame when iron-resize is fired.
+      this.__onIronResizeAsync = null;
       this._ensureSetup();
     },
 
@@ -18090,26 +18248,22 @@ context. You should place this element as a child of `<body>` whenever possible.
 
       this.__isAnimating = true;
 
+      // requestAnimationFrame for non-blocking rendering
+      if (this.__openChangedAsync) {
+        cancelAnimationFrame(this.__openChangedAsync);
+      }
       if (this.opened) {
-        this._prepareRenderOpened();
-      }
-      if (this._openChangedAsync) {
-        this.cancelAsync(this._openChangedAsync);
-      }
-      // Async here to allow overlay layer to become visible.
-      this._openChangedAsync = this.async(function() {
-        // overlay becomes visible here
-        this.style.display = '';
-        // Force layout to ensure transition will go. Set offsetWidth to itself
-        // so that compilers won't remove it.
-        this.offsetWidth = this.offsetWidth;
-        if (this.opened) {
-          this._renderOpened();
-        } else {
-          this._renderClosed();
+        if (this.withBackdrop) {
+          this.backdropElement.prepare();
         }
-        this._openChangedAsync = null;
-      });
+        this.__openChangedAsync = requestAnimationFrame(function() {
+          this.__openChangedAsync = null;
+          this._prepareRenderOpened();
+          this._renderOpened();
+        }.bind(this));
+      } else {
+        this._renderClosed();
+      }
     },
 
     _canceledChanged: function() {
@@ -18151,10 +18305,6 @@ context. You should place this element as a child of `<body>` whenever possible.
       this._preparePositioning();
       this.refit();
       this._finishPositioning();
-
-      if (this.withBackdrop) {
-        this.backdropElement.prepare();
-      }
 
       // Safari will apply the focus to the autofocus element when displayed for the first time,
       // so we blur it. Later, _applyFocus will set the focus if necessary.
@@ -18205,6 +18355,8 @@ context. You should place this element as a child of `<body>` whenever possible.
     _finishRenderClosed: function() {
       // Hide the overlay and remove the backdrop.
       this.style.display = 'none';
+      // Reset z-index only at the end of the animation.
+      this.style.zIndex = '';
 
       this._applyFocus();
 
@@ -18220,12 +18372,18 @@ context. You should place this element as a child of `<body>` whenever possible.
     },
 
     _finishPositioning: function() {
+      // First, make it invisible & reactivate animations.
       this.style.display = 'none';
-      this.style.transform = this.style.webkitTransform = '';
-      // Force layout layout to avoid application of transform.
-      // Set offsetWidth to itself so that compilers won't remove it.
-      this.offsetWidth = this.offsetWidth;
+      // Force reflow before re-enabling animations so that they don't start.
+      // Set scrollTop to itself so that Closure Compiler doesn't remove this.
+      this.scrollTop = this.scrollTop;
       this.style.transition = this.style.webkitTransition = '';
+      this.style.transform = this.style.webkitTransform = '';
+      // Now that animations are enabled, make it visible again
+      this.style.display = '';
+      // Force reflow, so that following animations are properly started.
+      // Set scrollTop to itself so that Closure Compiler doesn't remove this.
+      this.scrollTop = this.scrollTop;
     },
 
     /**
@@ -18308,12 +18466,15 @@ context. You should place this element as a child of `<body>` whenever possible.
      * @protected
      */
     _onIronResize: function() {
-      if (this.__isAnimating) {
-        return;
+      if (this.__onIronResizeAsync) {
+        cancelAnimationFrame(this.__onIronResizeAsync);
+        this.__onIronResizeAsync = null;
       }
-
-      if (this.opened) {
-        this.refit();
+      if (this.opened && !this.__isAnimating) {
+        this.__onIronResizeAsync = requestAnimationFrame(function() {
+          this.__onIronResizeAsync = null;
+          this.refit();
+        }.bind(this));
       }
     },
 
@@ -18356,6 +18517,7 @@ context. You should place this element as a child of `<body>` whenever possible.
   * @param {{canceled: (boolean|undefined)}} closingReason Contains `canceled` (whether the overlay was canceled).
   */
 
+})();
 </script>
 <script>
 
@@ -18383,9 +18545,10 @@ context. You should place this element as a child of `<body>` whenever possible.
 
     },
 
-    registered: function() {
-      new Polymer.IronMeta({type: 'animation', key: this.is, value: this.constructor});
-    },
+    /**
+     * Can be used to determine that elements implement this behavior.
+     */
+    isNeonAnimation: true,
 
     /**
      * Do any animation configuration here.
@@ -18638,13 +18801,6 @@ webkit/safari from drawing a frame before an animation for elements that animate
 
     properties: {
 
-      _animationMeta: {
-        type: Object,
-        value: function() {
-          return new Polymer.IronMeta({type: 'animation'});
-        }
-      },
-
       /** @type {?Object} */
       _player: {
         type: Object
@@ -18656,9 +18812,9 @@ webkit/safari from drawing a frame before an animation for elements that animate
       var allAnimations = [];
       if (allConfigs.length > 0) {
         for (var config, index = 0; config = allConfigs[index]; index++) {
-          var animationConstructor = this._animationMeta.byKey(config.name);
-          if (animationConstructor) {
-            var animation = animationConstructor && new animationConstructor();
+          var animation = document.createElement(config.name);
+          // is this element actually a neon animation?
+          if (animation.isNeonAnimation) {
             var effect = animation.configure(config);
             if (effect) {
               allAnimations.push({
@@ -19178,7 +19334,7 @@ The following custom properties and mixins are also available for styling:
 
 Custom property | Description | Default
 ----------------|-------------|----------
-`--paper-menu-button-dropdown-background` | Background color of the paper-menu-button dropdown | `#fff`
+`--paper-menu-button-dropdown-background` | Background color of the paper-menu-button dropdown | `--primary-background-color`
 `--paper-menu-button` | Mixin applied to the paper-menu-button | `{}`
 `--paper-menu-button-disabled` | Mixin applied to the paper-menu-button when disabled | `{}`
 `--paper-menu-button-dropdown` | Mixin applied to the paper-menu-button dropdown | `{}`
@@ -19189,19 +19345,12 @@ Custom property | Description | Default
 -->
 
 <script>
-
-(function(scrollEffects) {
-  function interpolate(progress, points, fn, ctx) {
-    fn.apply(ctx, points.map(function(point) {
-      return point[0] + (point[1] - point[0]) * progress;
-    }));
-  }
-
   /**
    * While scrolling down, fade in the rear background layer and fade out the front background
    * layer (opacity interpolated based on scroll position).
    */
-  scrollEffects['blend-background'] = {
+  Polymer.AppLayout.scrollEffects['blend-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
     setUp: function setUp() {
       this.$.backgroundFrontLayer.style.willChange = 'opacity';
       this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
@@ -19209,17 +19358,20 @@ Custom property | Description | Default
       this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
       this.$.backgroundRearLayer.style.opacity = 0;
     },
+    /** @this Polymer.AppLayout.ElementWithBackground */
     run: function run(p, y) {
       this.$.backgroundFrontLayer.style.opacity = 1 - p;
       this.$.backgroundRearLayer.style.opacity = p;
     }
   };
-
+</script>
+<script>
   /**
    * Upon scrolling past a threshold, fade in the rear background layer and fade out the front
    * background layer (opacity CSS transitioned over time).
    */
-  scrollEffects['fade-background'] = {
+  Polymer.AppLayout.scrollEffects['fade-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
     setUp: function setUp(config) {
       var duration = config.duration || '0.5s';
       this.$.backgroundFrontLayer.style.willChange = 'opacity';
@@ -19231,7 +19383,8 @@ Custom property | Description | Default
       this.$.backgroundRearLayer.style.transitionProperty = 'opacity';
       this.$.backgroundRearLayer.style.transitionDuration = duration;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       if (p >= 1) {
         this.$.backgroundFrontLayer.style.opacity = 0;
         this.$.backgroundRearLayer.style.opacity = 1;
@@ -19241,19 +19394,117 @@ Custom property | Description | Default
       }
     }
   };
+</script>
+<script>
+  /**
+   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
+   * between the element and the content underneath.
+   */
+  Polymer.AppLayout.scrollEffects.waterfall = {
+    /**
+     *  @this Polymer.AppLayout.ElementWithBackground
+     */
+    run: function run(p, y) {
+      this.shadow = this.isOnScreen() && this.isContentBelow();
+    }
+  };
+</script>
+<script>
+  (function() {
+    function interpolate(progress, points, fn, ctx) {
+      fn.apply(ctx, points.map(function(point) {
+        return point[0] + (point[1] - point[0]) * progress;
+      }));
+    }
 
+    /**
+     * Transform the font size of a designated title element between two values based on the scroll
+     * position.
+     */
+    Polymer.AppLayout.scrollEffects['resize-title'] = {
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      setUp: function setUp() {
+        var title = Polymer.dom(this).querySelector('[title]');
+        var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+
+        if (!condensedTitle) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
+          return false;
+        }
+        if (!title) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
+          return false;
+        }
+
+        condensedTitle.style.willChange = 'opacity';
+        title.style.willChange = 'opacity';
+
+        condensedTitle.style.webkitTransform = 'translateZ(0)';
+        title.style.webkitTransform = 'translateZ(0)';
+
+        var titleClientRect = title.getBoundingClientRect();
+        var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
+        var fx = {};
+
+        fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
+            parseInt(window.getComputedStyle(title)['font-size'], 10);
+        fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
+        fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
+        fx.condensedTitle = condensedTitle;
+        fx.title = title;
+
+        this._fxResizeTitle = fx;
+      },
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      tearDown: function tearDown() {
+        delete this._fxResizeTitle;
+      },
+      /** @this PolymerElement */
+      run: function run(p, y) {
+        var fx = this._fxResizeTitle;
+        if (!this.condenses) {
+          y = 0;
+        }
+        if (p >= 1) {
+          fx.title.style.opacity = 0;
+          fx.condensedTitle.style.opacity = 1;
+        } else {
+          fx.title.style.opacity = 1;
+          fx.condensedTitle.style.opacity = 0;
+        }
+
+        interpolate(Math.min(1, p),
+          [
+            [1, fx.scale],
+            [0, -fx.titleDX],
+            [y, y-fx.titleDY]
+          ],
+          function(scale, translateX, translateY) {
+            this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
+                'scale3d(' + scale + ', ' + scale + ', 1)', fx.title);
+          }, this);
+      }
+    };
+  })();
+</script>
+<script>
   /**
    * Vertically translate the background based on a factor of the scroll position.
    */
-  scrollEffects['parallax-background'] = {
+  Polymer.AppLayout.scrollEffects['parallax-background'] = {
+    /**
+     * @param {{scalar: string}} config
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp(config) {
       var scalar = parseFloat(config.scalar);
+
       this._deltaBg = this.$.backgroundFrontLayer.offsetHeight - this.$.background.offsetHeight;
       if (this._deltaBg === 0) {
         if (isNaN(scalar)) {
           scalar = 0.8;
         }
-        this._deltaBg = this._deltaHeight * scalar;
+        this._deltaBg = this._dHeight * scalar;
       } else {
         if (isNaN(scalar)) {
           scalar = 1;
@@ -19261,87 +19512,42 @@ Custom property | Description | Default
         this._deltaBg = this._deltaBg * scalar;
       }
     },
-    tearDown: function() {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    tearDown: function tearDown() {
       delete this._deltaBg;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundFrontLayer);
       if (this.$.backgroundRearLayer) {
         this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundRearLayer);
       }
     }
   };
-
+</script>
+<script>
   /**
-   * Transform the font size of a designated title element between two values based on the scroll
-   * position.
+   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
    */
-  scrollEffects['resize-title'] = {
+  Polymer.AppLayout.scrollEffects.material = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp() {
-      var title = Polymer.dom(this).querySelector('[title]');
-      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
-
-      if (!condensedTitle) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
-        return false;
-      }
-      if (!title) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
-        return false;
-      }
-
-      condensedTitle.style.willChange = 'opacity';
-      title.style.willChange = 'opacity';
-
-      condensedTitle.style.webkitTransform = 'translateZ(0)';
-      title.style.webkitTransform = 'translateZ(0)';
-
-      var titleClientRect = title.getBoundingClientRect();
-      var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
-      var fx = {};
-
-      fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
-          parseInt(window.getComputedStyle(title)['font-size'], 10);
-      fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
-      fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
-      fx.condensedTitle = condensedTitle;
-      fx.title = title;
-
-      this._fxResizeTitle = fx;
-    },
-    tearDown: function tearDown() {
-      delete this._fxResizeTitle;
-    },
-    run: function run(p, y) {
-      var fx = this._fxResizeTitle;
-      if (!this.condenses) {
-        y = 0;
-      }
-      if (p >= 1) {
-        fx.title.style.opacity = 0;
-        fx.condensedTitle.style.opacity = 1;
-      } else {
-        fx.title.style.opacity = 1;
-        fx.condensedTitle.style.opacity = 0;
-      }
-      interpolate(Math.min(1, p), [
-        [1,  fx.scale],
-        [0, -fx.titleDX],
-        [y, y-fx.titleDY]
-      ],
-      function(scale, translateX, translateY) {
-        this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
-            'scale3d(' + scale + ', ' + scale + ', 1)',
-            fx.title);
-      }, this);
+      this.effects = 'waterfall resize-title blend-background parallax-background';
+      return false;
     }
   };
-
+</script>
+<script>
   /**
    * Upon scrolling past a threshold, CSS transition the font size of a designated title element
    * between two values.
    */
-  scrollEffects['resize-snapped-title'] = {
+  Polymer.AppLayout.scrollEffects['resize-snapped-title'] = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp(config) {
       var title = Polymer.dom(this).querySelector('[title]');
       var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
@@ -19366,13 +19572,15 @@ Custom property | Description | Default
       fx.title = title;
       this._fxResizeSnappedTitle = fx;
     },
+    /** @this Polymer.AppLayout.ElementWithBackground */
     tearDown: function tearDown() {
       var fx = this._fxResizeSnappedTitle;
       fx.title.style.transition = '';
       fx.condensedTitle.style.transition = '';
       delete this._fxResizeSnappedTitle;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       var fx = this._fxResizeSnappedTitle;
       if (p > 0) {
         fx.title.style.opacity = 0;
@@ -19383,29 +19591,6 @@ Custom property | Description | Default
       }
     }
   };
-
-  /**
-   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
-   * between the element and the content underneath.
-   */
-  scrollEffects.waterfall = {
-    run: function run() {
-      this.shadow = this.isOnScreen() && this.isContentBelow();
-    }
-  };
-
-  /**
-   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
-   */
-  scrollEffects.material = {
-    setUp: function() {
-      this.effects = 'waterfall resize-title blend-background parallax-background';
-      return false;
-    }
-  };
-
-})(Polymer.AppLayout.scrollEffects);
-
 </script>
 <script>
   /**
@@ -20669,40 +20854,51 @@ Custom property | Description | Default
     });
   </script>
 </dom-module>
+<llink rel="import" href="../../../paper-styles/typography.html">
+
 <dom-module id="paper-item-shared-styles" assetpath="../../../paper-item/">
   <template>
     <style>
-      :host {
+      :host, .paper-item {
         display: block;
         position: relative;
         min-height: var(--paper-item-min-height, 48px);
         padding: 0px 16px;
       }
 
-      :host([hidden]) {
+      .paper-item {
+        @apply(--paper-font-subhead);
+        border:none;
+        outline: none;
+        background: white;
+        width: 100%;
+        text-align: left;
+      }
+
+      :host([hidden]), .paper-item[hidden] {
         display: none !important;
       }
 
-      :host(.iron-selected) {
+      :host(.iron-selected), .paper-item.iron-selected {
         font-weight: var(--paper-item-selected-weight, bold);
 
         @apply(--paper-item-selected);
       }
 
-      :host([disabled]) {
+      :host([disabled]), .paper-item[disabled] {
         color: var(--paper-item-disabled-color, --disabled-text-color);
 
         @apply(--paper-item-disabled);
       }
 
-      :host(:focus) {
+      :host(:focus), .paper-item:focus {
         position: relative;
         outline: 0;
 
         @apply(--paper-item-focused);
       }
 
-      :host(:focus):before {
+      :host(:focus):before, .paper-item:focus:before {
         @apply(--layout-fit);
 
         background: currentColor;
@@ -20715,7 +20911,7 @@ Custom property | Description | Default
     </style>
   </template>
 </dom-module>
-<dom-module id="paper-item" assetpath="../../../paper-item/">
+</llink><dom-module id="paper-item" assetpath="../../../paper-item/">
   <template>
     <style include="paper-item-shared-styles"></style>
     <style>
@@ -20775,129 +20971,130 @@ Custom property | Description | Default
   </script>
 </dom-module>
 <dom-module id="app-drawer" assetpath="../../app-drawer/">
-
-  <style>
-
-    :host {
-      position: fixed;
-      top: -120px;
-      bottom: -120px;
-      left: 0;
-      right: 0;
-      visibility: hidden;
-      transition: visibility 0.2s ease;
-    }
-
-    :host([opened]) {
-      visibility: visible;
-    }
-
-    :host([persistent]) {
-      width: var(--app-drawer-width, 256px);
-    }
-
-    :host([persistent][position=left]) {
-      right: auto;
-    }
-
-    :host([persistent][position=right]) {
-      left: auto;
-    }
-
-    #contentContainer {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      width: var(--app-drawer-width, 256px);
-      background-color: #FFF;
-      padding: 120px 0;
-
-      transition: 0.2s ease;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-
-      -webkit-transform: translate3d(-100%, 0, 0);
-      transform: translate3d(-100%, 0, 0);
-
-      @apply(--app-drawer-content-container);
-    }
-
-    :host([position=right]) > #contentContainer {
-      left: auto;
-      right: 0;
-
-      -webkit-transform: translate3d(100%, 0, 0);
-      transform: translate3d(100%, 0, 0);
-    }
-
-    :host([swipe-open]) > #contentContainer::after {
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      left: 100%;
-      width: 15px;
-      content: '';
-      visibility: visible;
-    }
-
-    :host([swipe-open][position=right]) > #contentContainer::after {
-      left: auto;
-      right: 100%;
-    }
-
-    :host([opened]) > #contentContainer {
-      -webkit-transform: translate3d(0, 0, 0);
-      transform: translate3d(0, 0, 0);
-    }
-
-    #scrim {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
-      opacity: 0;
-      transition: opacity 0.2s ease;
-
-      -webkit-transform: translateZ(0);
-      transform:  translateZ(0);
-    }
-
-    :host([opened]) > #scrim {
-      opacity: 1;
-    }
-
-    :host([opened][persistent]) > #scrim {
-      /**
-       * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
-       * scrim from showing when toggling between closed and opened/persistent.
-       */
-      opacity: 0;
-      visibility: hidden;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: fixed;
+        top: -120px;
+        right: 0;
+        bottom: -120px;
+        left: 0;
+
+        visibility: hidden;
+
+        transition: visibility 0.2s ease;
+      }
+
+      :host([opened]) {
+        visibility: visible;
+      }
+
+      :host([persistent]) {
+        width: var(--app-drawer-width, 256px);
+      }
+
+      :host([persistent][position=left]) {
+        right: auto;
+      }
+
+      :host([persistent][position=right]) {
+        left: auto;
+      }
+
+      #contentContainer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+
+        width: var(--app-drawer-width, 256px);
+        padding: 120px 0;
+
+        transition: 0.2s ease;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+
+        background-color: #FFF;
+
+        @apply(--app-drawer-content-container);
+      }
+
+      :host([position=right]) > #contentContainer {
+        right: 0;
+        left: auto;
+
+        -webkit-transform: translate3d(100%, 0, 0);
+        transform: translate3d(100%, 0, 0);
+      }
+
+      :host([swipe-open]) > #contentContainer::after {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 100%;
+
+        visibility: visible;
+
+        width: 15px;
+
+        content: '';
+      }
+
+      :host([swipe-open][position=right]) > #contentContainer::after {
+        right: 100%;
+        left: auto;
+      }
+
+      :host([opened]) > #contentContainer {
+        -webkit-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #scrim {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+
+        transition: opacity 0.2s ease;
+        -webkit-transform: translateZ(0);
+        transform:  translateZ(0);
+
+        opacity: 0;
+        background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
+      }
+
+      :host([opened]) > #scrim {
+        opacity: 1;
+      }
+
+      :host([opened][persistent]) > #scrim {
+        visibility: hidden;
+        /**
+         * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+         * scrim from showing when toggling between closed and opened/persistent.
+         */
+
+        opacity: 0;
+      }
+    </style>
 
     <div id="scrim" on-tap="close"></div>
 
     <div id="contentContainer">
       <content></content>
     </div>
-
   </template>
 
   <script>
 
     Polymer({
-
       is: 'app-drawer',
 
       properties: {
-
         /**
          * The opened state of the drawer.
          */
@@ -20945,7 +21142,6 @@ Custom property | Description | Default
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -21307,37 +21503,32 @@ Custom property | Description | Default
        *
        * @event app-drawer-transitioned
        */
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-drawer-layout" assetpath="../../app-drawer-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([fullbleed]) {
-      @apply(--layout-fit);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      transition: var(--app-drawer-layout-content-transition, none);
-    }
-
-    #contentContainer:not(.narrow) > ::content [drawer-toggle] {
-      display: none;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host([fullbleed]) {
+        @apply(--layout-fit);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        height: 100%;
+
+        transition: var(--app-drawer-layout-content-transition, none);
+      }
+
+      #contentContainer:not(.narrow) > ::content [drawer-toggle] {
+        display: none;
+      }
+    </style>
 
     <div id="contentContainer" class$="[[_computeClass(narrow)]]">
       <content select=":not(app-drawer)"></content>
@@ -21346,17 +21537,17 @@ Custom property | Description | Default
     <content id="drawerContent" select="app-drawer"></content>
 
     <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]" on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-drawer-layout',
 
-      properties: {
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
 
+      properties: {
         /**
          * Returns true if the panel is in narrow layout. This is useful if you
          * need to show/hide elements based on the layout.
@@ -21386,7 +21577,6 @@ Custom property | Description | Default
           type: String,
           value: '640px'
         }
-
       },
 
       listeners: {
@@ -21436,6 +21626,7 @@ Custom property | Description | Default
             this.$.contentContainer.style.marginLeft = this.drawer.getWidth() + 'px';
             this.$.contentContainer.style.marginRight = '';
           }
+          this.notifyResize();
         });
       },
 
@@ -21456,70 +21647,63 @@ Custom property | Description | Default
       _computeClass: function(narrow) {
         return narrow ? 'narrow' : '';
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header-layout" assetpath="../../app-header-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([has-scrolling-region]) {
-      position: relative;
-      height: 100%;
-    }
-
-    :host > ::content > app-header,
-    :host > ::content > [underlay-content] {
-      position: fixed;
-      top: 0;
-      right: 0;
-      left: 0;
-    }
-
-    :host([has-scrolling-region]) > ::content > app-header,
-    :host([has-scrolling-region]) > ::content > [underlay-content] {
-      position: absolute;
-    }
-
-    :host([has-scrolling-region]) > #contentContainer {
-      @apply(--layout-fit);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    #contentContainer {
-      position: relative;
-      overflow-y: hidden;
-      @apply(--app-header-layout-content);
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
 
-    <content id="underlayContent" select="[underlay-content]"></content>
+        /**
+         * Force app-header-layout to have its own stacking context so that its parent can
+         * control the stacking of it relative to other elements (e.g. app-drawer-layout).
+         * This could be done using `isolation: isolate`, but that's not well supported
+         * across browsers.
+         */
+        position: relative;
+        z-index: 0;
+      }
 
-    <div id="contentContainer">
-      <content select=":not(app-header):not([app-header-overlay])"></content>
-    </div>
+      :host([has-scrolling-region]) {
+        height: 100%;
+      }
+
+      :host > ::content > app-header {
+        @apply(--layout-fixed-top);
+
+        z-index: 1;
+      }
+
+      :host([has-scrolling-region]) > ::content > app-header {
+        position: absolute;
+      }
+
+      #contentContainer {
+        /* Create a stacking context here so that all children appear below the header. */
+        position: relative;
+        z-index: 0;
+      }
+
+      :host([has-scrolling-region]) > #contentContainer {
+        @apply(--layout-fit);
+
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
 
     <content id="header" select="app-header"></content>
 
-    <content select="[app-header-overlay]"></content>
+    <div id="contentContainer">
+      <content></content>
+    </div>
 
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header-layout',
 
       behaviors: [
@@ -21527,7 +21711,6 @@ Custom property | Description | Default
       ],
 
       properties: {
-
         /**
          * If true, the current element will have its own scrolling region.
          * Otherwise, it will use the document scroll to control the header.
@@ -21537,7 +21720,6 @@ Custom property | Description | Default
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -21554,7 +21736,8 @@ Custom property | Description | Default
       },
 
       /**
-       * Resets the layout. This method is automatically called when the element is attached to the DOM.
+       * Resets the layout. This method is automatically called when the element is attached
+       * to the DOM.
        *
        * @method resetLayout
        */
@@ -21563,36 +21746,39 @@ Custom property | Description | Default
         this.debounce('_resetLayout', this._updateContentPosition);
       },
 
-      _getFixedNodes: function() {
-        return Polymer.dom(this.$.header).getDistributedNodes().
-            concat(Polymer.dom(this.$.underlayContent).getDistributedNodes());
-      },
-
       _updateContentPosition: function() {
         var header = this.header;
-        var containerStyle = this.$.contentContainer.style;
-
         if (!this.isAttached || !header) {
           return;
         }
 
-        var rect = this.getBoundingClientRect();
-        var rightOffset = document.documentElement.clientWidth - rect.right;
-        this._headerHeight = header.offsetHeight;
+        // Get header height here so that style reads are batched together before style writes
+        // (i.e. getBoundingClientRect() below).
+        var headerHeight = header.offsetHeight;
 
-        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
-          containerStyle.marginTop = this._headerHeight + 'px';
-          containerStyle.paddingTop = '';
+        // Update the header position.
+        if (!this.hasScrollingRegion) {
+          var rect = this.getBoundingClientRect();
+          var rightOffset = document.documentElement.clientWidth - rect.right;
+          header.style.left = rect.left + 'px';
+          header.style.right = rightOffset + 'px';
         } else {
-          containerStyle.paddingTop = this._headerHeight + 'px';
-          containerStyle.marginTop = '';
+          header.style.left = '';
+          header.style.right = '';
         }
 
-        // update fixed nodes
-        this._getFixedNodes().forEach(function(node) {
-          node.style.left = this.hasScrollingRegion ? '' : rect.left + 'px';
-          node.style.right = this.hasScrollingRegion ? '' : rightOffset + 'px';
-        }.bind(this));
+        // Update the content container position.
+        var containerStyle = this.$.contentContainer.style;
+        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
+          // If the header size does not change and we're using a scrolling region, exclude
+          // the header area from the scrolling region so that the header doesn't overlap
+          // the scrollbar.
+          containerStyle.marginTop = headerHeight + 'px';
+          containerStyle.paddingTop = '';
+        } else {
+          containerStyle.paddingTop = headerHeight + 'px';
+          containerStyle.marginTop = '';
+        }
       },
 
       _updateScroller: function() {
@@ -21609,103 +21795,112 @@ Custom property | Description | Default
       _resizeHandler: function() {
         this.resetLayout();
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header" assetpath="../../app-header/">
-  <style>
-
-    :host {
-      position: relative;
-      display: block;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-      transition-timing-function: linear;
-    }
-
-    :host::after {
-      content: "";
-      position: absolute;
-      left: 0px;
-      right: 0px;
-      bottom: -5px;
-      width: 100%;
-      height: 5px;
-      pointer-events: none;
-      opacity: 0;
-      box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
-      will-change: opacity;
-      transition: opacity 0.4s;
-      @apply(--app-header-shadow);
-    }
-
-    :host([shadow])::after {
-      opacity: 1;
-    }
-
-    #contentContainer > ::content [condensed-title] {
-      opacity: 0;
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #contentContainer > ::content [title] {
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #background {
-      @apply(--layout-fit);
-      overflow: hidden;
-    }
-
-    #backgroundFrontLayer,
-    #backgroundRearLayer {
-      @apply(--layout-fit);
-      pointer-events: none;
-      background-size: cover;
-      height: 100%;
-    }
-
-    #backgroundFrontLayer {
-      @apply(--app-header-background-front-layer);
-    }
-
-    #backgroundRearLayer {
-      @apply(--app-header-background-rear-layer);
-      opacity: 0;
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      width: 100%;
-    }
-
-    :host([disabled]),
-    :host([disabled])::after,
-    :host([disabled]) #backgroundFrontLayer,
-    :host([disabled]) #backgroundRearLayer,
-    :host([disabled]) ::content > app-toolbar:first-of-type,
-    :host([disabled]) ::content > [primary],
-    /* Silent scrolling should not run CSS transitions */
-    :host-context(.app-layout-silent-scroll),
-    :host-context(.app-layout-silent-scroll)::after,
-    :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
-    :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
-    :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
-    :host-context(.app-layout-silent-scroll) ::content > [primary] {
-      transition: none !important;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+
+        transition-timing-function: linear;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+      }
+
+      :host::after {
+        position: absolute;
+        right: 0px;
+        bottom: -5px;
+        left: 0px;
+
+        width: 100%;
+        height: 5px;
+
+        content: "";
+        transition: opacity 0.4s;
+        pointer-events: none;
+
+        opacity: 0;
+        box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
+
+        will-change: opacity;
+
+        @apply(--app-header-shadow);
+      }
+
+      :host([shadow])::after {
+        opacity: 1;
+      }
+
+      #contentContainer > ::content [condensed-title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+
+        opacity: 0;
+      }
+
+      #contentContainer > ::content [title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+      }
+
+      #backgroundFrontLayer,
+      #backgroundRearLayer {
+        @apply(--layout-fit);
+
+        height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+      }
+
+      #backgroundFrontLayer {
+        @apply(--app-header-background-front-layer);
+      }
+
+      #backgroundRearLayer {
+        opacity: 0;
+
+        @apply(--app-header-background-rear-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled])::after,
+      :host([disabled]) #backgroundFrontLayer,
+      :host([disabled]) #backgroundRearLayer,
+      :host([disabled]) ::content > app-toolbar:first-of-type,
+      :host([disabled]) ::content > [primary],
+      /* Silent scrolling should not run CSS transitions */
+      :host-context(.app-layout-silent-scroll),
+      :host-context(.app-layout-silent-scroll)::after,
+      :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
+      :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
+      :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
+      :host-context(.app-layout-silent-scroll) ::content > [primary] {
+        transition: none !important;
+      }
+    </style>
+
     <div id="background">
       <div id="backgroundRearLayer"></div>
       <div id="backgroundFrontLayer"></div>
@@ -21716,9 +21911,7 @@ Custom property | Description | Default
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header',
 
       behaviors: [
@@ -21727,7 +21920,6 @@ Custom property | Description | Default
       ],
 
       properties: {
-
         /**
          * If true, the header will automatically collapse when scrolling down.
          * That is, the `primary` element remains visible when the header is fully condensed
@@ -21786,7 +21978,6 @@ Custom property | Description | Default
           reflectToAttribute: true,
           value: false
         }
-
       },
 
       observers: [
@@ -21821,7 +22012,7 @@ Custom property | Description | Default
       /**
        * The element that remains visible when the header condenses.
        *
-       * @type {Element}
+       * @type {HTMLElement}
        */
       _primaryEl: null,
 
@@ -21860,15 +22051,18 @@ Custom property | Description | Default
        * @return {HTMLElement}?
        */
       _getPrimaryEl: function() {
+        /** @type {HTMLElement} */
         var primaryEl;
         var nodes = Polymer.dom(this.$.content).getDistributedNodes();
 
         for (var i = 0; i < nodes.length; i++) {
           if (nodes[i].nodeType === Node.ELEMENT_NODE) {
-            if (nodes[i].hasAttribute('primary')) {
-              return nodes[i];
+            var node = /** @type {HTMLElement} */ (nodes[i]);
+            if (node.hasAttribute('primary')) {
+              primaryEl = node;
+              break;
             } else if (!primaryEl) {
-              primaryEl = nodes[i];
+              primaryEl = node;
             }
           }
         }
@@ -21881,7 +22075,6 @@ Custom property | Description | Default
        * @method resetLayout
        */
       resetLayout: function() {
-
         this.fire('app-header-reset-layout');
 
         this.debounce('_resetLayout', function() {
@@ -21926,8 +22119,8 @@ Custom property | Description | Default
       /**
        * Updates the scroll state.
        *
-       * @param {number}
-       * @param {boolean}
+       * @param {number} scrollTop
+       * @param {boolean=} forceUpdate (default: false)
        */
       _updateScrollState: function(scrollTop, forceUpdate) {
         if (this._height === 0) {
@@ -22044,7 +22237,7 @@ Custom property | Description | Default
       /**
        * Transforms the header.
        *
-       * @param {number}
+       * @param {number} y
        */
       _transformHeader: function(y) {
         this.translate3d(0, (-y) + 'px', 0);
@@ -22080,23 +22273,22 @@ Custom property | Description | Default
        * @event app-header-reset-layout
        */
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-toolbar" assetpath="../../app-toolbar/">
-
   <template>
-
     <style>
-
       :host {
+        position: relative;
+
         @apply(--layout-horizontal);
         @apply(--layout-center);
+
         height: 64px;
         padding: 0 16px;
-        position: relative;
+
         pointer-events: none;
+
         font-size: var(--app-toolbar-font-size, 20px);
       }
 
@@ -22111,55 +22303,44 @@ Custom property | Description | Default
 
       :host > ::content > [title],
       :host > ::content > [condensed-title] {
-        @apply(--layout-flex);
         pointer-events: none;
+        @apply(--layout-flex);
       }
 
       :host > ::content > [bottom-item] {
         position: absolute;
+        right: 0;
         bottom: 0;
         left: 0;
-        right: 0;
       }
 
       :host > ::content > [top-item] {
         position: absolute;
         top: 0;
-        left: 0;
         right: 0;
+        left: 0;
       }
 
       :host > ::content > [spacer] {
         margin-left: 64px;
       }
-
     </style>
 
     <content></content>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-toolbar'
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-scrollpos-control" assetpath="../../app-scrollpos-control/">
-
   <script>
-
     Polymer({
-
       is: 'app-scrollpos-control',
 
       properties: {
-
         /**
          * The selected page.
          */
@@ -22175,7 +22356,6 @@ Custom property | Description | Default
           type: Boolean,
           value: false
         }
-
       },
 
       observers: [
@@ -22210,11 +22390,8 @@ Custom property | Description | Default
           behavior: 'silent'
         });
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="iron-image" assetpath="../../../iron-image/">
   <template>
@@ -23497,310 +23674,338 @@ Custom property | Description | Default
   </script>
 </dom-module>
 <dom-module id="paper-menu-button" assetpath="../../../paper-menu-button/">
-  <style>
-    :host {
-      display: inline-block;
-      position: relative;
-      padding: 8px;
-      outline: none;
-
-      @apply(--paper-menu-button);
-    }
-
-    :host([disabled]) {
-      cursor: auto;
-      color: var(--disabled-text-color);
-
-      @apply(--paper-menu-button-disabled);
-    }
-
-    :host([vertical-align="top"]) paper-material {
-      margin-bottom: 20px;
-      margin-top: -10px;
-      top: 10px;
-    }
-
-    :host([vertical-align="bottom"]) paper-material {
-      bottom: 10px;
-      margin-bottom: -10px;
-      margin-top: 20px;
-    }
-
-    iron-dropdown {
-      @apply(--paper-menu-button-dropdown);
-    }
-
-    .dropdown-content {
-      border-radius: 2px;
-      background-color: var(--paper-menu-button-dropdown-background, --primary-background-color);
-      @apply(--paper-menu-button-content);
-    }
-  </style>
   <template>
-    <div id="trigger" on-tap="open">
+    <style>
+      :host {
+        display: inline-block;
+        position: relative;
+        padding: 8px;
+        outline: none;
+
+        @apply(--paper-menu-button);
+      }
+
+      :host([disabled]) {
+        cursor: auto;
+        color: var(--disabled-text-color);
+
+        @apply(--paper-menu-button-disabled);
+      }
+
+      iron-dropdown {
+        @apply(--paper-menu-button-dropdown);
+      }
+
+      .dropdown-content {
+        @apply(--shadow-elevation-2dp);
+
+        position: relative;
+        border-radius: 2px;
+        background-color: var(--paper-menu-button-dropdown-background, --primary-background-color);
+
+        @apply(--paper-menu-button-content);
+      }
+
+      :host([vertical-align="top"]) .dropdown-content {
+        margin-bottom: 20px;
+        margin-top: -10px;
+        top: 10px;
+      }
+
+      :host([vertical-align="bottom"]) .dropdown-content {
+        bottom: 10px;
+        margin-bottom: -10px;
+        margin-top: 20px;
+      }
+    </style>
+
+    <div id="trigger" on-tap="toggle">
       <content select=".dropdown-trigger"></content>
     </div>
-    <iron-dropdown id="dropdown" opened="{{opened}}" horizontal-align="[[horizontalAlign]]" vertical-align="[[verticalAlign]]" horizontal-offset="[[horizontalOffset]]" vertical-offset="[[verticalOffset]]" open-animation-config="[[openAnimationConfig]]" close-animation-config="[[closeAnimationConfig]]" no-animations="[[noAnimations]]" focus-target="[[_dropdownContent]]">
-      <paper-material class="dropdown-content">
+
+    <iron-dropdown id="dropdown" opened="{{opened}}" horizontal-align="[[horizontalAlign]]" vertical-align="[[verticalAlign]]" horizontal-offset="[[horizontalOffset]]" vertical-offset="[[verticalOffset]]" open-animation-config="[[openAnimationConfig]]" close-animation-config="[[closeAnimationConfig]]" no-animations="[[noAnimations]]" focus-target="[[_dropdownContent]]" on-iron-overlay-canceled="__onIronOverlayCanceled">
+      <div class="dropdown-content">
         <content id="content" select=".dropdown-content"></content>
-      </paper-material>
+      </div>
     </iron-dropdown>
   </template>
-</dom-module>
-<script>
-  (function() {
-    'use strict';
 
-    var PaperMenuButton = Polymer({
-      is: 'paper-menu-button',
+  <script>
+    (function() {
+      'use strict';
 
-      /**
-       * Fired when the dropdown opens.
-       *
-       * @event paper-dropdown-open
-       */
-
-      /**
-       * Fired when the dropdown closes.
-       *
-       * @event paper-dropdown-close
-       */
-
-      behaviors: [
-        Polymer.IronA11yKeysBehavior,
-        Polymer.IronControlState
-      ],
-
-      properties: {
+      var PaperMenuButton = Polymer({
+        is: 'paper-menu-button',
 
         /**
-         * True if the content is currently displayed.
+         * Fired when the dropdown opens.
+         *
+         * @event paper-dropdown-open
          */
-        opened: {
-          type: Boolean,
-          value: false,
-          notify: true,
-          observer: '_openedChanged'
+
+        /**
+         * Fired when the dropdown closes.
+         *
+         * @event paper-dropdown-close
+         */
+
+        behaviors: [
+          Polymer.IronA11yKeysBehavior,
+          Polymer.IronControlState
+        ],
+
+        properties: {
+          /**
+           * True if the content is currently displayed.
+           */
+          opened: {
+            type: Boolean,
+            value: false,
+            notify: true,
+            observer: '_openedChanged'
+          },
+
+          /**
+           * The orientation against which to align the menu dropdown
+           * horizontally relative to the dropdown trigger.
+           */
+          horizontalAlign: {
+            type: String,
+            value: 'left',
+            reflectToAttribute: true
+          },
+
+          /**
+           * The orientation against which to align the menu dropdown
+           * vertically relative to the dropdown trigger.
+           */
+          verticalAlign: {
+            type: String,
+            value: 'top',
+            reflectToAttribute: true
+          },
+
+          /**
+           * A pixel value that will be added to the position calculated for the
+           * given `horizontalAlign`. Use a negative value to offset to the
+           * left, or a positive value to offset to the right.
+           */
+          horizontalOffset: {
+            type: Number,
+            value: 0,
+            notify: true
+          },
+
+          /**
+           * A pixel value that will be added to the position calculated for the
+           * given `verticalAlign`. Use a negative value to offset towards the
+           * top, or a positive value to offset towards the bottom.
+           */
+          verticalOffset: {
+            type: Number,
+            value: 0,
+            notify: true
+          },
+
+          /**
+           * Set to true to disable animations when opening and closing the
+           * dropdown.
+           */
+          noAnimations: {
+            type: Boolean,
+            value: false
+          },
+
+          /**
+           * Set to true to disable automatically closing the dropdown after
+           * a selection has been made.
+           */
+          ignoreSelect: {
+            type: Boolean,
+            value: false
+          },
+
+          /**
+           * An animation config. If provided, this will be used to animate the
+           * opening of the dropdown.
+           */
+          openAnimationConfig: {
+            type: Object,
+            value: function() {
+              return [{
+                name: 'fade-in-animation',
+                timing: {
+                  delay: 100,
+                  duration: 200
+                }
+              }, {
+                name: 'paper-menu-grow-width-animation',
+                timing: {
+                  delay: 100,
+                  duration: 150,
+                  easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
+                }
+              }, {
+                name: 'paper-menu-grow-height-animation',
+                timing: {
+                  delay: 100,
+                  duration: 275,
+                  easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
+                }
+              }];
+            }
+          },
+
+          /**
+           * An animation config. If provided, this will be used to animate the
+           * closing of the dropdown.
+           */
+          closeAnimationConfig: {
+            type: Object,
+            value: function() {
+              return [{
+                name: 'fade-out-animation',
+                timing: {
+                  duration: 150
+                }
+              }, {
+                name: 'paper-menu-shrink-width-animation',
+                timing: {
+                  delay: 100,
+                  duration: 50,
+                  easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
+                }
+              }, {
+                name: 'paper-menu-shrink-height-animation',
+                timing: {
+                  duration: 200,
+                  easing: 'ease-in'
+                }
+              }];
+            }
+          },
+
+          /**
+           * This is the element intended to be bound as the focus target
+           * for the `iron-dropdown` contained by `paper-menu-button`.
+           */
+          _dropdownContent: {
+            type: Object
+          }
+        },
+
+        hostAttributes: {
+          role: 'group',
+          'aria-haspopup': 'true'
+        },
+
+        listeners: {
+          'iron-select': '_onIronSelect'
         },
 
         /**
-         * The orientation against which to align the menu dropdown
-         * horizontally relative to the dropdown trigger.
+         * The content element that is contained by the menu button, if any.
          */
-        horizontalAlign: {
-          type: String,
-          value: 'left',
-          reflectToAttribute: true
+        get contentElement() {
+          return Polymer.dom(this.$.content).getDistributedNodes()[0];
         },
 
         /**
-         * The orientation against which to align the menu dropdown
-         * vertically relative to the dropdown trigger.
+         * Toggles the drowpdown content between opened and closed.
          */
-        verticalAlign: {
-          type: String,
-          value: 'top',
-          reflectToAttribute: true
+        toggle: function() {
+          if (this.opened) {
+            this.close();
+          } else {
+            this.open();
+          }
         },
 
         /**
-         * A pixel value that will be added to the position calculated for the
-         * given `horizontalAlign`. Use a negative value to offset to the
-         * left, or a positive value to offset to the right.
+         * Make the dropdown content appear as an overlay positioned relative
+         * to the dropdown trigger.
          */
-        horizontalOffset: {
-          type: Number,
-          value: 0,
-          notify: true
+        open: function() {
+          if (this.disabled) {
+            return;
+          }
+
+          this.$.dropdown.open();
         },
 
         /**
-         * A pixel value that will be added to the position calculated for the
-         * given `verticalAlign`. Use a negative value to offset towards the
-         * top, or a positive value to offset towards the bottom.
+         * Hide the dropdown content.
          */
-        verticalOffset: {
-          type: Number,
-          value: 0,
-          notify: true
+        close: function() {
+          this.$.dropdown.close();
         },
 
         /**
-         * Set to true to disable animations when opening and closing the
+         * When an `iron-select` event is received, the dropdown should
+         * automatically close on the assumption that a value has been chosen.
+         *
+         * @param {CustomEvent} event A CustomEvent instance with type
+         * set to `"iron-select"`.
+         */
+        _onIronSelect: function(event) {
+          if (!this.ignoreSelect) {
+            this.close();
+          }
+        },
+
+        /**
+         * When the dropdown opens, the `paper-menu-button` fires `paper-open`.
+         * When the dropdown closes, the `paper-menu-button` fires `paper-close`.
+         *
+         * @param {boolean} opened True if the dropdown is opened, otherwise false.
+         * @param {boolean} oldOpened The previous value of `opened`.
+         */
+        _openedChanged: function(opened, oldOpened) {
+          if (opened) {
+            // TODO(cdata): Update this when we can measure changes in distributed
+            // children in an idiomatic way.
+            // We poke this property in case the element has changed. This will
+            // cause the focus target for the `iron-dropdown` to be updated as
+            // necessary:
+            this._dropdownContent = this.contentElement;
+            this.fire('paper-dropdown-open');
+          } else if (oldOpened != null) {
+            this.fire('paper-dropdown-close');
+          }
+        },
+
+        /**
+         * If the dropdown is open when disabled becomes true, close the
          * dropdown.
+         *
+         * @param {boolean} disabled True if disabled, otherwise false.
          */
-        noAnimations: {
-          type: Boolean,
-          value: false
-        },
-
-        /**
-         * Set to true to disable automatically closing the dropdown after
-         * a selection has been made.
-         */
-        ignoreSelect: {
-          type: Boolean,
-          value: false
-        },
-
-        /**
-         * An animation config. If provided, this will be used to animate the
-         * opening of the dropdown.
-         */
-        openAnimationConfig: {
-          type: Object,
-          value: function() {
-            return [{
-              name: 'fade-in-animation',
-              timing: {
-                delay: 100,
-                duration: 200
-              }
-            }, {
-              name: 'paper-menu-grow-width-animation',
-              timing: {
-                delay: 100,
-                duration: 150,
-                easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
-              }
-            }, {
-              name: 'paper-menu-grow-height-animation',
-              timing: {
-                delay: 100,
-                duration: 275,
-                easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
-              }
-            }];
+        _disabledChanged: function(disabled) {
+          Polymer.IronControlState._disabledChanged.apply(this, arguments);
+          if (disabled && this.opened) {
+            this.close();
           }
         },
 
-        /**
-         * An animation config. If provided, this will be used to animate the
-         * closing of the dropdown.
-         */
-        closeAnimationConfig: {
-          type: Object,
-          value: function() {
-            return [{
-              name: 'fade-out-animation',
-              timing: {
-                duration: 150
-              }
-            }, {
-              name: 'paper-menu-shrink-width-animation',
-              timing: {
-                delay: 100,
-                duration: 50,
-                easing: PaperMenuButton.ANIMATION_CUBIC_BEZIER
-              }
-            }, {
-              name: 'paper-menu-shrink-height-animation',
-              timing: {
-                duration: 200,
-                easing: 'ease-in'
-              }
-            }];
+        __onIronOverlayCanceled: function(event) {
+          var uiEvent = event.detail;
+          var target = Polymer.dom(uiEvent).rootTarget;
+          var trigger = this.$.trigger;
+          var path = Polymer.dom(uiEvent).path;
+
+          if (path.indexOf(trigger) > -1) {
+            event.preventDefault();
           }
-        },
-
-        /**
-         * This is the element intended to be bound as the focus target
-         * for the `iron-dropdown` contained by `paper-menu-button`.
-         */
-        _dropdownContent: {
-          type: Object
         }
-      },
+      });
 
-      hostAttributes: {
-        role: 'group',
-        'aria-haspopup': 'true'
-      },
+      PaperMenuButton.ANIMATION_CUBIC_BEZIER = 'cubic-bezier(.3,.95,.5,1)';
+      PaperMenuButton.MAX_ANIMATION_TIME_MS = 400;
 
-      listeners: {
-        'iron-select': '_onIronSelect'
-      },
-
-      /**
-       * The content element that is contained by the menu button, if any.
-       */
-      get contentElement() {
-        return Polymer.dom(this.$.content).getDistributedNodes()[0];
-      },
-
-      /**
-       * Make the dropdown content appear as an overlay positioned relative
-       * to the dropdown trigger.
-       */
-      open: function() {
-        if (this.disabled) {
-          return;
-        }
-
-        this.$.dropdown.open();
-      },
-
-      /**
-       * Hide the dropdown content.
-       */
-      close: function() {
-        this.$.dropdown.close();
-      },
-
-      /**
-       * When an `iron-select` event is received, the dropdown should
-       * automatically close on the assumption that a value has been chosen.
-       *
-       * @param {CustomEvent} event A CustomEvent instance with type
-       * set to `"iron-select"`.
-       */
-      _onIronSelect: function(event) {
-        if (!this.ignoreSelect) {
-          this.close();
-        }
-      },
-
-      /**
-       * When the dropdown opens, the `paper-menu-button` fires `paper-open`.
-       * When the dropdown closes, the `paper-menu-button` fires `paper-close`.
-       *
-       * @param {boolean} opened True if the dropdown is opened, otherwise false.
-       * @param {boolean} oldOpened The previous value of `opened`.
-       */
-      _openedChanged: function(opened, oldOpened) {
-        if (opened) {
-          // TODO(cdata): Update this when we can measure changes in distributed
-          // children in an idiomatic way.
-          // We poke this property in case the element has changed. This will
-          // cause the focus target for the `iron-dropdown` to be updated as
-          // necessary:
-          this._dropdownContent = this.contentElement;
-          this.fire('paper-dropdown-open');
-        } else if (oldOpened != null) {
-          this.fire('paper-dropdown-close');
-        }
-      },
-
-      /**
-       * If the dropdown is open when disabled becomes true, close the
-       * dropdown.
-       *
-       * @param {boolean} disabled True if disabled, otherwise false.
-       */
-      _disabledChanged: function(disabled) {
-        Polymer.IronControlState._disabledChanged.apply(this, arguments);
-        if (disabled && this.opened) {
-          this.close();
-        }
-      }
-    });
-
-    PaperMenuButton.ANIMATION_CUBIC_BEZIER = 'cubic-bezier(.3,.95,.5,1)';
-    PaperMenuButton.MAX_ANIMATION_TIME_MS = 400;
-
-    Polymer.PaperMenuButton = PaperMenuButton;
-  })();
-</script>
+      Polymer.PaperMenuButton = PaperMenuButton;
+    })();
+  </script>
+</dom-module>
 <dom-module id="recipe-detail" assetpath="src/">
 
   <template>
@@ -24136,11 +24341,9 @@ Custom property | Description | Default
         </app-toolbar>
       </app-header>
 
-      <paper-fab app-header-overlay="" icon="app:create"></paper-fab>
-
       <div class="content">
         <template is="dom-repeat" items="{{recipes}}"><!-- No empty text node
-        --><a href="#/detail/{{item.name}}" class="card-container">
+        --><a href="#/detail/{{item.id}}" class="card-container">
             <paper-card image="{{item.imageUrl}}">
               <div class="card-content">
                 <h2>{{item.name}}</h2>
@@ -24152,6 +24355,8 @@ Custom property | Description | Default
       </div>
 
     </app-header-layout>
+
+    <paper-fab icon="app:create"></paper-fab>
   </template>
 
   <script>
@@ -24232,7 +24437,7 @@ Custom property | Description | Default
 
     <carbon-location route="{{_route}}" use-hash-as-path=""></carbon-location>
     <carbon-route route="{{_route}}" pattern="/:page" data="{{_pageData}}" tail="{{_subRoute}}"></carbon-route>
-    <carbon-route route="{{_subRoute}}" pattern="/:recipe" data="{{_recipeData}}"></carbon-route>
+    <carbon-route route="{{_subRoute}}" pattern="/:id" data="{{_idData}}"></carbon-route>
 
     <app-drawer-layout responsive-width="1280px">
 
@@ -24282,7 +24487,7 @@ Custom property | Description | Default
           <paper-icon-button icon="app:menu" drawer-toggle=""></paper-icon-button>
         </recipe-list>
 
-        <recipe-detail id="detailView" name="detail" recipe="[[_getRecipe(recipes, _recipeData.recipe)]]"></recipe-detail>
+        <recipe-detail id="detailView" name="detail" recipe="[[_getRecipe(recipes, _idData.id)]]"></recipe-detail>
 
       </iron-pages>
 
@@ -24306,11 +24511,11 @@ Custom property | Description | Default
 
       _pageData: Object,
 
-      _recipeData: Object
+      _idData: Object
 
     },
 
-    ready: function() {
+    attached: function() {
       this.async(function() {
         if (!this._route.path) {
           this.set('_route.path', '/home');
@@ -24323,10 +24528,10 @@ Custom property | Description | Default
     },
 
     _getRecipe: function() {
-      if (this.recipes && this._recipeData.recipe) {
+      if (this.recipes && this._idData.id) {
         for (var i = 0; i < this.recipes.length; ++i) {
           var r = this.recipes[i];
-          if (r.name === this._recipeData.recipe) {
+          if (r.id === this._idData.id) {
             return r;
           }
         }
@@ -24347,8 +24552,8 @@ Custom property | Description | Default
 
   <template is="dom-bind">
 
-    <recipe-app recipes="{{data.recipes}}"></recipe-app>
-    <iron-ajax url="data/recipes.json" auto="" last-response="{{data}}"></iron-ajax>
+    <iron-ajax url="data/recipes.json" auto="" last-response="{{recipes}}"></iron-ajax>
+    <recipe-app recipes="[[recipes]]"></recipe-app>
 
   </template>
 

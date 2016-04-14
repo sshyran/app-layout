@@ -1,17 +1,17 @@
-<!DOCTYPE html><!--
+<!--
 @license
-Copyright (c) 2015 The Polymer Project Authors. All rights reserved.
+Copyright (c) 2016 The Polymer Project Authors. All rights reserved.
 This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
 The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
 The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
 Code distributed by Google as part of the polymer project is also
 subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
---><html><head>
-
-  <title>Expand Card</title>
-
+--><!DOCTYPE html><html><head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
+  <meta name="theme-color" content="#C62828">
+
+  <title>Test Drive</title>
 
   <script>/**
  * @license
@@ -2514,9 +2514,8 @@ window.CustomElements.addModule(function(scope) {
   var head = document.querySelector("head");
   head.insertBefore(style, head.firstChild);
 })(window.WebComponents);</script>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:400,300,300italic,400italic,500,500italic,700,700italic">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto+Mono:400,700">
-<script>(function () {
+
+  <script>(function () {
 function resolve() {
 document.body.removeAttribute('unresolved');
 }
@@ -10138,6 +10137,508 @@ this.fire('dom-change');
 }
 });</script>
 <!--
+`iron-meta` is a generic element you can use for sharing information across the DOM tree.
+It uses [monostate pattern](http://c2.com/cgi/wiki?MonostatePattern) such that any
+instance of iron-meta has access to the shared
+information. You can use `iron-meta` to share whatever you want (or create an extension
+[like x-meta] for enhancements).
+
+The `iron-meta` instances containing your actual data can be loaded in an import,
+or constructed in any way you see fit. The only requirement is that you create them
+before you try to access them.
+
+Examples:
+
+If I create an instance like this:
+
+    <iron-meta key="info" value="foo/bar"></iron-meta>
+
+Note that value="foo/bar" is the metadata I've defined. I could define more
+attributes or use child nodes to define additional metadata.
+
+Now I can access that element (and it's metadata) from any iron-meta instance
+via the byKey method, e.g.
+
+    meta.byKey('info').getAttribute('value');
+
+Pure imperative form would be like:
+
+    document.createElement('iron-meta').byKey('info').getAttribute('value');
+
+Or, in a Polymer element, you can include a meta in your template:
+
+    <iron-meta id="meta"></iron-meta>
+    ...
+    this.$.meta.byKey('info').getAttribute('value');
+
+@group Iron Elements
+@demo demo/index.html
+@hero hero.svg
+@element iron-meta
+-->
+
+<script>
+
+  (function() {
+
+    // monostate data
+    var metaDatas = {};
+    var metaArrays = {};
+    var singleton = null;
+
+    Polymer.IronMeta = Polymer({
+
+      is: 'iron-meta',
+
+      properties: {
+
+        /**
+         * The type of meta-data.  All meta-data of the same type is stored
+         * together.
+         */
+        type: {
+          type: String,
+          value: 'default',
+          observer: '_typeChanged'
+        },
+
+        /**
+         * The key used to store `value` under the `type` namespace.
+         */
+        key: {
+          type: String,
+          observer: '_keyChanged'
+        },
+
+        /**
+         * The meta-data to store or retrieve.
+         */
+        value: {
+          type: Object,
+          notify: true,
+          observer: '_valueChanged'
+        },
+
+        /**
+         * If true, `value` is set to the iron-meta instance itself.
+         */
+         self: {
+          type: Boolean,
+          observer: '_selfChanged'
+        },
+
+        /**
+         * Array of all meta-data values for the given type.
+         */
+        list: {
+          type: Array,
+          notify: true
+        }
+
+      },
+
+      hostAttributes: {
+        hidden: true
+      },
+
+      /**
+       * Only runs if someone invokes the factory/constructor directly
+       * e.g. `new Polymer.IronMeta()`
+       *
+       * @param {{type: (string|undefined), key: (string|undefined), value}=} config
+       */
+      factoryImpl: function(config) {
+        if (config) {
+          for (var n in config) {
+            switch(n) {
+              case 'type':
+              case 'key':
+              case 'value':
+                this[n] = config[n];
+                break;
+            }
+          }
+        }
+      },
+
+      created: function() {
+        // TODO(sjmiles): good for debugging?
+        this._metaDatas = metaDatas;
+        this._metaArrays = metaArrays;
+      },
+
+      _keyChanged: function(key, old) {
+        this._resetRegistration(old);
+      },
+
+      _valueChanged: function(value) {
+        this._resetRegistration(this.key);
+      },
+
+      _selfChanged: function(self) {
+        if (self) {
+          this.value = this;
+        }
+      },
+
+      _typeChanged: function(type) {
+        this._unregisterKey(this.key);
+        if (!metaDatas[type]) {
+          metaDatas[type] = {};
+        }
+        this._metaData = metaDatas[type];
+        if (!metaArrays[type]) {
+          metaArrays[type] = [];
+        }
+        this.list = metaArrays[type];
+        this._registerKeyValue(this.key, this.value);
+      },
+
+      /**
+       * Retrieves meta data value by key.
+       *
+       * @method byKey
+       * @param {string} key The key of the meta-data to be returned.
+       * @return {*}
+       */
+      byKey: function(key) {
+        return this._metaData && this._metaData[key];
+      },
+
+      _resetRegistration: function(oldKey) {
+        this._unregisterKey(oldKey);
+        this._registerKeyValue(this.key, this.value);
+      },
+
+      _unregisterKey: function(key) {
+        this._unregister(key, this._metaData, this.list);
+      },
+
+      _registerKeyValue: function(key, value) {
+        this._register(key, value, this._metaData, this.list);
+      },
+
+      _register: function(key, value, data, list) {
+        if (key && data && value !== undefined) {
+          data[key] = value;
+          list.push(value);
+        }
+      },
+
+      _unregister: function(key, data, list) {
+        if (key && data) {
+          if (key in data) {
+            var value = data[key];
+            delete data[key];
+            this.arrayDelete(list, value);
+          }
+        }
+      }
+
+    });
+
+    Polymer.IronMeta.getIronMeta = function getIronMeta() {
+       if (singleton === null) {
+         singleton = new Polymer.IronMeta();
+       }
+       return singleton;
+     };
+
+    /**
+    `iron-meta-query` can be used to access infomation stored in `iron-meta`.
+
+    Examples:
+
+    If I create an instance like this:
+
+        <iron-meta key="info" value="foo/bar"></iron-meta>
+
+    Note that value="foo/bar" is the metadata I've defined. I could define more
+    attributes or use child nodes to define additional metadata.
+
+    Now I can access that element (and it's metadata) from any `iron-meta-query` instance:
+
+         var value = new Polymer.IronMetaQuery({key: 'info'}).value;
+
+    @group Polymer Iron Elements
+    @element iron-meta-query
+    */
+    Polymer.IronMetaQuery = Polymer({
+
+      is: 'iron-meta-query',
+
+      properties: {
+
+        /**
+         * The type of meta-data.  All meta-data of the same type is stored
+         * together.
+         */
+        type: {
+          type: String,
+          value: 'default',
+          observer: '_typeChanged'
+        },
+
+        /**
+         * Specifies a key to use for retrieving `value` from the `type`
+         * namespace.
+         */
+        key: {
+          type: String,
+          observer: '_keyChanged'
+        },
+
+        /**
+         * The meta-data to store or retrieve.
+         */
+        value: {
+          type: Object,
+          notify: true,
+          readOnly: true
+        },
+
+        /**
+         * Array of all meta-data values for the given type.
+         */
+        list: {
+          type: Array,
+          notify: true
+        }
+
+      },
+
+      /**
+       * Actually a factory method, not a true constructor. Only runs if
+       * someone invokes it directly (via `new Polymer.IronMeta()`);
+       *
+       * @param {{type: (string|undefined), key: (string|undefined)}=} config
+       */
+      factoryImpl: function(config) {
+        if (config) {
+          for (var n in config) {
+            switch(n) {
+              case 'type':
+              case 'key':
+                this[n] = config[n];
+                break;
+            }
+          }
+        }
+      },
+
+      created: function() {
+        // TODO(sjmiles): good for debugging?
+        this._metaDatas = metaDatas;
+        this._metaArrays = metaArrays;
+      },
+
+      _keyChanged: function(key) {
+        this._setValue(this._metaData && this._metaData[key]);
+      },
+
+      _typeChanged: function(type) {
+        this._metaData = metaDatas[type];
+        this.list = metaArrays[type];
+        if (this.key) {
+          this._keyChanged(this.key);
+        }
+      },
+
+      /**
+       * Retrieves meta data value by key.
+       * @param {string} key The key of the meta-data to be returned.
+       * @return {*}
+       */
+      byKey: function(key) {
+        return this._metaData && this._metaData[key];
+      }
+
+    });
+
+  })();
+</script>
+<script>
+  /**
+   * The `iron-iconset-svg` element allows users to define their own icon sets
+   * that contain svg icons. The svg icon elements should be children of the
+   * `iron-iconset-svg` element. Multiple icons should be given distinct id's.
+   *
+   * Using svg elements to create icons has a few advantages over traditional
+   * bitmap graphics like jpg or png. Icons that use svg are vector based so
+   * they are resolution independent and should look good on any device. They
+   * are stylable via css. Icons can be themed, colorized, and even animated.
+   *
+   * Example:
+   *
+   *     <iron-iconset-svg name="my-svg-icons" size="24">
+   *       <svg>
+   *         <defs>
+   *           <g id="shape">
+   *             <rect x="12" y="0" width="12" height="24" />
+   *             <circle cx="12" cy="12" r="12" />
+   *           </g>
+   *         </defs>
+   *       </svg>
+   *     </iron-iconset-svg>
+   *
+   * This will automatically register the icon set "my-svg-icons" to the iconset
+   * database.  To use these icons from within another element, make a
+   * `iron-iconset` element and call the `byId` method
+   * to retrieve a given iconset. To apply a particular icon inside an
+   * element use the `applyIcon` method. For example:
+   *
+   *     iconset.applyIcon(iconNode, 'car');
+   *
+   * @element iron-iconset-svg
+   * @demo demo/index.html
+   * @implements {Polymer.Iconset}
+   */
+  Polymer({
+    is: 'iron-iconset-svg',
+
+    properties: {
+
+      /**
+       * The name of the iconset.
+       */
+      name: {
+        type: String,
+        observer: '_nameChanged'
+      },
+
+      /**
+       * The size of an individual icon. Note that icons must be square.
+       */
+      size: {
+        type: Number,
+        value: 24
+      }
+
+    },
+
+    attached: function() {
+      this.style.display = 'none';
+    },
+
+    /**
+     * Construct an array of all icon names in this iconset.
+     *
+     * @return {!Array} Array of icon names.
+     */
+    getIconNames: function() {
+      this._icons = this._createIconMap();
+      return Object.keys(this._icons).map(function(n) {
+        return this.name + ':' + n;
+      }, this);
+    },
+
+    /**
+     * Applies an icon to the given element.
+     *
+     * An svg icon is prepended to the element's shadowRoot if it exists,
+     * otherwise to the element itself.
+     *
+     * @method applyIcon
+     * @param {Element} element Element to which the icon is applied.
+     * @param {string} iconName Name of the icon to apply.
+     * @return {?Element} The svg element which renders the icon.
+     */
+    applyIcon: function(element, iconName) {
+      // insert svg element into shadow root, if it exists
+      element = element.root || element;
+      // Remove old svg element
+      this.removeIcon(element);
+      // install new svg element
+      var svg = this._cloneIcon(iconName);
+      if (svg) {
+        var pde = Polymer.dom(element);
+        pde.insertBefore(svg, pde.childNodes[0]);
+        return element._svgIcon = svg;
+      }
+      return null;
+    },
+
+    /**
+     * Remove an icon from the given element by undoing the changes effected
+     * by `applyIcon`.
+     *
+     * @param {Element} element The element from which the icon is removed.
+     */
+    removeIcon: function(element) {
+      // Remove old svg element
+      if (element._svgIcon) {
+        Polymer.dom(element).removeChild(element._svgIcon);
+        element._svgIcon = null;
+      }
+    },
+
+    /**
+     *
+     * When name is changed, register iconset metadata
+     *
+     */
+    _nameChanged: function() {
+      new Polymer.IronMeta({type: 'iconset', key: this.name, value: this});
+      this.async(function() {
+        this.fire('iron-iconset-added', this, {node: window});
+      });
+    },
+
+    /**
+     * Create a map of child SVG elements by id.
+     *
+     * @return {!Object} Map of id's to SVG elements.
+     */
+    _createIconMap: function() {
+      // Objects chained to Object.prototype (`{}`) have members. Specifically,
+      // on FF there is a `watch` method that confuses the icon map, so we
+      // need to use a null-based object here.
+      var icons = Object.create(null);
+      Polymer.dom(this).querySelectorAll('[id]')
+        .forEach(function(icon) {
+          icons[icon.id] = icon;
+        });
+      return icons;
+    },
+
+    /**
+     * Produce installable clone of the SVG element matching `id` in this
+     * iconset, or `undefined` if there is no matching element.
+     *
+     * @return {Element} Returns an installable clone of the SVG element
+     * matching `id`.
+     */
+    _cloneIcon: function(id) {
+      // create the icon map on-demand, since the iconset itself has no discrete
+      // signal to know when it's children are fully parsed
+      this._icons = this._icons || this._createIconMap();
+      return this._prepareSvgClone(this._icons[id], this.size);
+    },
+
+    /**
+     * @param {Element} sourceSvg
+     * @param {number} size
+     * @return {Element}
+     */
+    _prepareSvgClone: function(sourceSvg, size) {
+      if (sourceSvg) {
+        var content = sourceSvg.cloneNode(true),
+            svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'),
+            viewBox = content.getAttribute('viewBox') || '0 0 ' + size + ' ' + size;
+        svg.setAttribute('viewBox', viewBox);
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+        // TODO(dfreedm): `pointer-events: none` works around https://crbug.com/370136
+        // TODO(sjmiles): inline style may not be ideal, but avoids requiring a shadow-root
+        svg.style.cssText = 'pointer-events: none; display: block; width: 100%; height: 100%;';
+        svg.appendChild(content).removeAttribute('id');
+        return svg;
+      }
+      return null;
+    }
+
+  });
+</script>
+<!--
 The `<iron-flex-layout>` component provides simple ways to use
 [CSS flexible box layout](https://developer.mozilla.org/en-US/docs/Web/Guide/CSS/Flexible_boxes),
 also known as flexbox. This component provides two different ways to use flexbox:
@@ -10525,6 +11026,3422 @@ A complete [guide](https://elements.polymer-project.org/guides/flex-layout) to `
 
 </style>
 <!--
+
+The `iron-icon` element displays an icon. By default an icon renders as a 24px square.
+
+Example using src:
+
+    <iron-icon src="star.png"></iron-icon>
+
+Example setting size to 32px x 32px:
+
+    <iron-icon class="big" src="big_star.png"></iron-icon>
+
+    <style is="custom-style">
+      .big {
+        --iron-icon-height: 32px;
+        --iron-icon-width: 32px;
+      }
+    </style>
+
+The iron elements include several sets of icons.
+To use the default set of icons, import `iron-icons.html` and use the `icon` attribute to specify an icon:
+
+    <link rel="import" href="/components/iron-icons/iron-icons.html">
+
+    <iron-icon icon="menu"></iron-icon>
+
+To use a different built-in set of icons, import the specific `iron-icons/<iconset>-icons.html`, and
+specify the icon as `<iconset>:<icon>`. For example, to use a communication icon, you would
+use:
+
+    <link rel="import" href="/components/iron-icons/communication-icons.html">
+
+    <iron-icon icon="communication:email"></iron-icon>
+
+You can also create custom icon sets of bitmap or SVG icons.
+
+Example of using an icon named `cherry` from a custom iconset with the ID `fruit`:
+
+    <iron-icon icon="fruit:cherry"></iron-icon>
+
+See [iron-iconset](iron-iconset) and [iron-iconset-svg](iron-iconset-svg) for more information about
+how to create a custom iconset.
+
+See the [iron-icons demo](iron-icons?view=demo:demo/index.html) to see the icons available
+in the various iconsets.
+
+To load a subset of icons from one of the default `iron-icons` sets, you can
+use the [poly-icon](https://poly-icon.appspot.com/) tool. It allows you
+to select individual icons, and creates an iconset from them that you can
+use directly in your elements.
+
+### Styling
+
+The following custom properties are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--iron-icon-width` | Width of the icon | `24px`
+`--iron-icon-height` | Height of the icon | `24px`
+`--iron-icon-fill-color` | Fill color of the svg icon | `currentcolor`
+`--iron-icon-stroke-color` | Stroke color of the svg icon | none
+
+@group Iron Elements
+@element iron-icon
+@demo demo/index.html
+@hero hero.svg
+@homepage polymer.github.io
+-->
+
+<script>
+  (function() {
+    'use strict';
+
+    /**
+     * Chrome uses an older version of DOM Level 3 Keyboard Events
+     *
+     * Most keys are labeled as text, but some are Unicode codepoints.
+     * Values taken from: http://www.w3.org/TR/2007/WD-DOM-Level-3-Events-20071221/keyset.html#KeySet-Set
+     */
+    var KEY_IDENTIFIER = {
+      'U+0008': 'backspace',
+      'U+0009': 'tab',
+      'U+001B': 'esc',
+      'U+0020': 'space',
+      'U+007F': 'del'
+    };
+
+    /**
+     * Special table for KeyboardEvent.keyCode.
+     * KeyboardEvent.keyIdentifier is better, and KeyBoardEvent.key is even better
+     * than that.
+     *
+     * Values from: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent.keyCode#Value_of_keyCode
+     */
+    var KEY_CODE = {
+      8: 'backspace',
+      9: 'tab',
+      13: 'enter',
+      27: 'esc',
+      33: 'pageup',
+      34: 'pagedown',
+      35: 'end',
+      36: 'home',
+      32: 'space',
+      37: 'left',
+      38: 'up',
+      39: 'right',
+      40: 'down',
+      46: 'del',
+      106: '*'
+    };
+
+    /**
+     * MODIFIER_KEYS maps the short name for modifier keys used in a key
+     * combo string to the property name that references those same keys
+     * in a KeyboardEvent instance.
+     */
+    var MODIFIER_KEYS = {
+      'shift': 'shiftKey',
+      'ctrl': 'ctrlKey',
+      'alt': 'altKey',
+      'meta': 'metaKey'
+    };
+
+    /**
+     * KeyboardEvent.key is mostly represented by printable character made by
+     * the keyboard, with unprintable keys labeled nicely.
+     *
+     * However, on OS X, Alt+char can make a Unicode character that follows an
+     * Apple-specific mapping. In this case, we fall back to .keyCode.
+     */
+    var KEY_CHAR = /[a-z0-9*]/;
+
+    /**
+     * Matches a keyIdentifier string.
+     */
+    var IDENT_CHAR = /U\+/;
+
+    /**
+     * Matches arrow keys in Gecko 27.0+
+     */
+    var ARROW_KEY = /^arrow/;
+
+    /**
+     * Matches space keys everywhere (notably including IE10's exceptional name
+     * `spacebar`).
+     */
+    var SPACE_KEY = /^space(bar)?/;
+
+    /**
+     * Matches ESC key.
+     *
+     * Value from: http://w3c.github.io/uievents-key/#key-Escape
+     */
+    var ESC_KEY = /^escape$/;
+
+    /**
+     * Transforms the key.
+     * @param {string} key The KeyBoardEvent.key
+     * @param {Boolean} [noSpecialChars] Limits the transformation to
+     * alpha-numeric characters.
+     */
+    function transformKey(key, noSpecialChars) {
+      var validKey = '';
+      if (key) {
+        var lKey = key.toLowerCase();
+        if (lKey === ' ' || SPACE_KEY.test(lKey)) {
+          validKey = 'space';
+        } else if (ESC_KEY.test(lKey)) {
+          validKey = 'esc';
+        } else if (lKey.length == 1) {
+          if (!noSpecialChars || KEY_CHAR.test(lKey)) {
+            validKey = lKey;
+          }
+        } else if (ARROW_KEY.test(lKey)) {
+          validKey = lKey.replace('arrow', '');
+        } else if (lKey == 'multiply') {
+          // numpad '*' can map to Multiply on IE/Windows
+          validKey = '*';
+        } else {
+          validKey = lKey;
+        }
+      }
+      return validKey;
+    }
+
+    function transformKeyIdentifier(keyIdent) {
+      var validKey = '';
+      if (keyIdent) {
+        if (keyIdent in KEY_IDENTIFIER) {
+          validKey = KEY_IDENTIFIER[keyIdent];
+        } else if (IDENT_CHAR.test(keyIdent)) {
+          keyIdent = parseInt(keyIdent.replace('U+', '0x'), 16);
+          validKey = String.fromCharCode(keyIdent).toLowerCase();
+        } else {
+          validKey = keyIdent.toLowerCase();
+        }
+      }
+      return validKey;
+    }
+
+    function transformKeyCode(keyCode) {
+      var validKey = '';
+      if (Number(keyCode)) {
+        if (keyCode >= 65 && keyCode <= 90) {
+          // ascii a-z
+          // lowercase is 32 offset from uppercase
+          validKey = String.fromCharCode(32 + keyCode);
+        } else if (keyCode >= 112 && keyCode <= 123) {
+          // function keys f1-f12
+          validKey = 'f' + (keyCode - 112);
+        } else if (keyCode >= 48 && keyCode <= 57) {
+          // top 0-9 keys
+          validKey = String(keyCode - 48);
+        } else if (keyCode >= 96 && keyCode <= 105) {
+          // num pad 0-9
+          validKey = String(keyCode - 96);
+        } else {
+          validKey = KEY_CODE[keyCode];
+        }
+      }
+      return validKey;
+    }
+
+    /**
+      * Calculates the normalized key for a KeyboardEvent.
+      * @param {KeyboardEvent} keyEvent
+      * @param {Boolean} [noSpecialChars] Set to true to limit keyEvent.key
+      * transformation to alpha-numeric chars. This is useful with key
+      * combinations like shift + 2, which on FF for MacOS produces
+      * keyEvent.key = @
+      * To get 2 returned, set noSpecialChars = true
+      * To get @ returned, set noSpecialChars = false
+     */
+    function normalizedKeyForEvent(keyEvent, noSpecialChars) {
+      // Fall back from .key, to .keyIdentifier, to .keyCode, and then to
+      // .detail.key to support artificial keyboard events.
+      return transformKey(keyEvent.key, noSpecialChars) ||
+        transformKeyIdentifier(keyEvent.keyIdentifier) ||
+        transformKeyCode(keyEvent.keyCode) ||
+        transformKey(keyEvent.detail.key, noSpecialChars) || '';
+    }
+
+    function keyComboMatchesEvent(keyCombo, event) {
+      // For combos with modifiers we support only alpha-numeric keys
+      var keyEvent = normalizedKeyForEvent(event, keyCombo.hasModifiers);
+      return keyEvent === keyCombo.key &&
+        (!keyCombo.hasModifiers || (
+          !!event.shiftKey === !!keyCombo.shiftKey &&
+          !!event.ctrlKey === !!keyCombo.ctrlKey &&
+          !!event.altKey === !!keyCombo.altKey &&
+          !!event.metaKey === !!keyCombo.metaKey)
+        );
+    }
+
+    function parseKeyComboString(keyComboString) {
+      if (keyComboString.length === 1) {
+        return {
+          combo: keyComboString,
+          key: keyComboString,
+          event: 'keydown'
+        };
+      }
+      return keyComboString.split('+').reduce(function(parsedKeyCombo, keyComboPart) {
+        var eventParts = keyComboPart.split(':');
+        var keyName = eventParts[0];
+        var event = eventParts[1];
+
+        if (keyName in MODIFIER_KEYS) {
+          parsedKeyCombo[MODIFIER_KEYS[keyName]] = true;
+          parsedKeyCombo.hasModifiers = true;
+        } else {
+          parsedKeyCombo.key = keyName;
+          parsedKeyCombo.event = event || 'keydown';
+        }
+
+        return parsedKeyCombo;
+      }, {
+        combo: keyComboString.split(':').shift()
+      });
+    }
+
+    function parseEventString(eventString) {
+      return eventString.trim().split(' ').map(function(keyComboString) {
+        return parseKeyComboString(keyComboString);
+      });
+    }
+
+    /**
+     * `Polymer.IronA11yKeysBehavior` provides a normalized interface for processing
+     * keyboard commands that pertain to [WAI-ARIA best practices](http://www.w3.org/TR/wai-aria-practices/#kbd_general_binding).
+     * The element takes care of browser differences with respect to Keyboard events
+     * and uses an expressive syntax to filter key presses.
+     *
+     * Use the `keyBindings` prototype property to express what combination of keys
+     * will trigger the event to fire.
+     *
+     * Use the `key-event-target` attribute to set up event handlers on a specific
+     * node.
+     * The `keys-pressed` event will fire when one of the key combinations set with the
+     * `keys` property is pressed.
+     *
+     * @demo demo/index.html
+     * @polymerBehavior
+     */
+    Polymer.IronA11yKeysBehavior = {
+      properties: {
+        /**
+         * The HTMLElement that will be firing relevant KeyboardEvents.
+         */
+        keyEventTarget: {
+          type: Object,
+          value: function() {
+            return this;
+          }
+        },
+
+        /**
+         * If true, this property will cause the implementing element to
+         * automatically stop propagation on any handled KeyboardEvents.
+         */
+        stopKeyboardEventPropagation: {
+          type: Boolean,
+          value: false
+        },
+
+        _boundKeyHandlers: {
+          type: Array,
+          value: function() {
+            return [];
+          }
+        },
+
+        // We use this due to a limitation in IE10 where instances will have
+        // own properties of everything on the "prototype".
+        _imperativeKeyBindings: {
+          type: Object,
+          value: function() {
+            return {};
+          }
+        }
+      },
+
+      observers: [
+        '_resetKeyEventListeners(keyEventTarget, _boundKeyHandlers)'
+      ],
+
+      keyBindings: {},
+
+      registered: function() {
+        this._prepKeyBindings();
+      },
+
+      attached: function() {
+        this._listenKeyEventListeners();
+      },
+
+      detached: function() {
+        this._unlistenKeyEventListeners();
+      },
+
+      /**
+       * Can be used to imperatively add a key binding to the implementing
+       * element. This is the imperative equivalent of declaring a keybinding
+       * in the `keyBindings` prototype property.
+       */
+      addOwnKeyBinding: function(eventString, handlerName) {
+        this._imperativeKeyBindings[eventString] = handlerName;
+        this._prepKeyBindings();
+        this._resetKeyEventListeners();
+      },
+
+      /**
+       * When called, will remove all imperatively-added key bindings.
+       */
+      removeOwnKeyBindings: function() {
+        this._imperativeKeyBindings = {};
+        this._prepKeyBindings();
+        this._resetKeyEventListeners();
+      },
+
+      /**
+       * Returns true if a keyboard event matches `eventString`.
+       *
+       * @param {KeyboardEvent} event
+       * @param {string} eventString
+       * @return {boolean}
+       */
+      keyboardEventMatchesKeys: function(event, eventString) {
+        var keyCombos = parseEventString(eventString);
+        for (var i = 0; i < keyCombos.length; ++i) {
+          if (keyComboMatchesEvent(keyCombos[i], event)) {
+            return true;
+          }
+        }
+        return false;
+      },
+
+      _collectKeyBindings: function() {
+        var keyBindings = this.behaviors.map(function(behavior) {
+          return behavior.keyBindings;
+        });
+
+        if (keyBindings.indexOf(this.keyBindings) === -1) {
+          keyBindings.push(this.keyBindings);
+        }
+
+        return keyBindings;
+      },
+
+      _prepKeyBindings: function() {
+        this._keyBindings = {};
+
+        this._collectKeyBindings().forEach(function(keyBindings) {
+          for (var eventString in keyBindings) {
+            this._addKeyBinding(eventString, keyBindings[eventString]);
+          }
+        }, this);
+
+        for (var eventString in this._imperativeKeyBindings) {
+          this._addKeyBinding(eventString, this._imperativeKeyBindings[eventString]);
+        }
+
+        // Give precedence to combos with modifiers to be checked first.
+        for (var eventName in this._keyBindings) {
+          this._keyBindings[eventName].sort(function (kb1, kb2) {
+            var b1 = kb1[0].hasModifiers;
+            var b2 = kb2[0].hasModifiers;
+            return (b1 === b2) ? 0 : b1 ? -1 : 1;
+          })
+        }
+      },
+
+      _addKeyBinding: function(eventString, handlerName) {
+        parseEventString(eventString).forEach(function(keyCombo) {
+          this._keyBindings[keyCombo.event] =
+            this._keyBindings[keyCombo.event] || [];
+
+          this._keyBindings[keyCombo.event].push([
+            keyCombo,
+            handlerName
+          ]);
+        }, this);
+      },
+
+      _resetKeyEventListeners: function() {
+        this._unlistenKeyEventListeners();
+
+        if (this.isAttached) {
+          this._listenKeyEventListeners();
+        }
+      },
+
+      _listenKeyEventListeners: function() {
+        Object.keys(this._keyBindings).forEach(function(eventName) {
+          var keyBindings = this._keyBindings[eventName];
+          var boundKeyHandler = this._onKeyBindingEvent.bind(this, keyBindings);
+
+          this._boundKeyHandlers.push([this.keyEventTarget, eventName, boundKeyHandler]);
+
+          this.keyEventTarget.addEventListener(eventName, boundKeyHandler);
+        }, this);
+      },
+
+      _unlistenKeyEventListeners: function() {
+        var keyHandlerTuple;
+        var keyEventTarget;
+        var eventName;
+        var boundKeyHandler;
+
+        while (this._boundKeyHandlers.length) {
+          // My kingdom for block-scope binding and destructuring assignment..
+          keyHandlerTuple = this._boundKeyHandlers.pop();
+          keyEventTarget = keyHandlerTuple[0];
+          eventName = keyHandlerTuple[1];
+          boundKeyHandler = keyHandlerTuple[2];
+
+          keyEventTarget.removeEventListener(eventName, boundKeyHandler);
+        }
+      },
+
+      _onKeyBindingEvent: function(keyBindings, event) {
+        if (this.stopKeyboardEventPropagation) {
+          event.stopPropagation();
+        }
+
+        // if event has been already prevented, don't do anything
+        if (event.defaultPrevented) {
+          return;
+        }
+
+        for (var i = 0; i < keyBindings.length; i++) {
+          var keyCombo = keyBindings[i][0];
+          var handlerName = keyBindings[i][1];
+          if (keyComboMatchesEvent(keyCombo, event)) {
+            this._triggerKeyHandler(keyCombo, handlerName, event);
+            // exit the loop if eventDefault was prevented
+            if (event.defaultPrevented) {
+              return;
+            }
+          }
+        }
+      },
+
+      _triggerKeyHandler: function(keyCombo, handlerName, keyboardEvent) {
+        var detail = Object.create(keyCombo);
+        detail.keyboardEvent = keyboardEvent;
+        var event = new CustomEvent(keyCombo.event, {
+          detail: detail,
+          cancelable: true
+        });
+        this[handlerName].call(this, event);
+        if (event.defaultPrevented) {
+          keyboardEvent.preventDefault();
+        }
+      }
+    };
+  })();
+</script>
+<script>
+
+  /**
+   * @demo demo/index.html
+   * @polymerBehavior
+   */
+  Polymer.IronControlState = {
+
+    properties: {
+
+      /**
+       * If true, the element currently has focus.
+       */
+      focused: {
+        type: Boolean,
+        value: false,
+        notify: true,
+        readOnly: true,
+        reflectToAttribute: true
+      },
+
+      /**
+       * If true, the user cannot interact with this element.
+       */
+      disabled: {
+        type: Boolean,
+        value: false,
+        notify: true,
+        observer: '_disabledChanged',
+        reflectToAttribute: true
+      },
+
+      _oldTabIndex: {
+        type: Number
+      },
+
+      _boundFocusBlurHandler: {
+        type: Function,
+        value: function() {
+          return this._focusBlurHandler.bind(this);
+        }
+      }
+
+    },
+
+    observers: [
+      '_changedControlState(focused, disabled)'
+    ],
+
+    ready: function() {
+      this.addEventListener('focus', this._boundFocusBlurHandler, true);
+      this.addEventListener('blur', this._boundFocusBlurHandler, true);
+    },
+
+    _focusBlurHandler: function(event) {
+      // NOTE(cdata):  if we are in ShadowDOM land, `event.target` will
+      // eventually become `this` due to retargeting; if we are not in
+      // ShadowDOM land, `event.target` will eventually become `this` due
+      // to the second conditional which fires a synthetic event (that is also
+      // handled). In either case, we can disregard `event.path`.
+
+      if (event.target === this) {
+        this._setFocused(event.type === 'focus');
+      } else if (!this.shadowRoot && !this.isLightDescendant(event.target)) {
+        this.fire(event.type, {sourceEvent: event}, {
+          node: this,
+          bubbles: event.bubbles,
+          cancelable: event.cancelable
+        });
+      }
+    },
+
+    _disabledChanged: function(disabled, old) {
+      this.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+      this.style.pointerEvents = disabled ? 'none' : '';
+      if (disabled) {
+        this._oldTabIndex = this.tabIndex;
+        this.focused = false;
+        this.tabIndex = -1;
+        this.blur();
+      } else if (this._oldTabIndex !== undefined) {
+        this.tabIndex = this._oldTabIndex;
+      }
+    },
+
+    _changedControlState: function() {
+      // _controlStateChanged is abstract, follow-on behaviors may implement it
+      if (this._controlStateChanged) {
+        this._controlStateChanged();
+      }
+    }
+
+  };
+
+</script>
+<script>
+
+  /**
+   * @demo demo/index.html
+   * @polymerBehavior Polymer.IronButtonState
+   */
+  Polymer.IronButtonStateImpl = {
+
+    properties: {
+
+      /**
+       * If true, the user is currently holding down the button.
+       */
+      pressed: {
+        type: Boolean,
+        readOnly: true,
+        value: false,
+        reflectToAttribute: true,
+        observer: '_pressedChanged'
+      },
+
+      /**
+       * If true, the button toggles the active state with each tap or press
+       * of the spacebar.
+       */
+      toggles: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true
+      },
+
+      /**
+       * If true, the button is a toggle and is currently in the active state.
+       */
+      active: {
+        type: Boolean,
+        value: false,
+        notify: true,
+        reflectToAttribute: true
+      },
+
+      /**
+       * True if the element is currently being pressed by a "pointer," which
+       * is loosely defined as mouse or touch input (but specifically excluding
+       * keyboard input).
+       */
+      pointerDown: {
+        type: Boolean,
+        readOnly: true,
+        value: false
+      },
+
+      /**
+       * True if the input device that caused the element to receive focus
+       * was a keyboard.
+       */
+      receivedFocusFromKeyboard: {
+        type: Boolean,
+        readOnly: true
+      },
+
+      /**
+       * The aria attribute to be set if the button is a toggle and in the
+       * active state.
+       */
+      ariaActiveAttribute: {
+        type: String,
+        value: 'aria-pressed',
+        observer: '_ariaActiveAttributeChanged'
+      }
+    },
+
+    listeners: {
+      down: '_downHandler',
+      up: '_upHandler',
+      tap: '_tapHandler'
+    },
+
+    observers: [
+      '_detectKeyboardFocus(focused)',
+      '_activeChanged(active, ariaActiveAttribute)'
+    ],
+
+    keyBindings: {
+      'enter:keydown': '_asyncClick',
+      'space:keydown': '_spaceKeyDownHandler',
+      'space:keyup': '_spaceKeyUpHandler',
+    },
+
+    _mouseEventRe: /^mouse/,
+
+    _tapHandler: function() {
+      if (this.toggles) {
+       // a tap is needed to toggle the active state
+        this._userActivate(!this.active);
+      } else {
+        this.active = false;
+      }
+    },
+
+    _detectKeyboardFocus: function(focused) {
+      this._setReceivedFocusFromKeyboard(!this.pointerDown && focused);
+    },
+
+    // to emulate native checkbox, (de-)activations from a user interaction fire
+    // 'change' events
+    _userActivate: function(active) {
+      if (this.active !== active) {
+        this.active = active;
+        this.fire('change');
+      }
+    },
+
+    _downHandler: function(event) {
+      this._setPointerDown(true);
+      this._setPressed(true);
+      this._setReceivedFocusFromKeyboard(false);
+    },
+
+    _upHandler: function() {
+      this._setPointerDown(false);
+      this._setPressed(false);
+    },
+
+    /**
+     * @param {!KeyboardEvent} event .
+     */
+    _spaceKeyDownHandler: function(event) {
+      var keyboardEvent = event.detail.keyboardEvent;
+      var target = Polymer.dom(keyboardEvent).localTarget;
+
+      // Ignore the event if this is coming from a focused light child, since that
+      // element will deal with it.
+      if (this.isLightDescendant(/** @type {Node} */(target)))
+        return;
+
+      keyboardEvent.preventDefault();
+      keyboardEvent.stopImmediatePropagation();
+      this._setPressed(true);
+    },
+
+    /**
+     * @param {!KeyboardEvent} event .
+     */
+    _spaceKeyUpHandler: function(event) {
+      var keyboardEvent = event.detail.keyboardEvent;
+      var target = Polymer.dom(keyboardEvent).localTarget;
+
+      // Ignore the event if this is coming from a focused light child, since that
+      // element will deal with it.
+      if (this.isLightDescendant(/** @type {Node} */(target)))
+        return;
+
+      if (this.pressed) {
+        this._asyncClick();
+      }
+      this._setPressed(false);
+    },
+
+    // trigger click asynchronously, the asynchrony is useful to allow one
+    // event handler to unwind before triggering another event
+    _asyncClick: function() {
+      this.async(function() {
+        this.click();
+      }, 1);
+    },
+
+    // any of these changes are considered a change to button state
+
+    _pressedChanged: function(pressed) {
+      this._changedButtonState();
+    },
+
+    _ariaActiveAttributeChanged: function(value, oldValue) {
+      if (oldValue && oldValue != value && this.hasAttribute(oldValue)) {
+        this.removeAttribute(oldValue);
+      }
+    },
+
+    _activeChanged: function(active, ariaActiveAttribute) {
+      if (this.toggles) {
+        this.setAttribute(this.ariaActiveAttribute,
+                          active ? 'true' : 'false');
+      } else {
+        this.removeAttribute(this.ariaActiveAttribute);
+      }
+      this._changedButtonState();
+    },
+
+    _controlStateChanged: function() {
+      if (this.disabled) {
+        this._setPressed(false);
+      } else {
+        this._changedButtonState();
+      }
+    },
+
+    // provide hook for follow-on behaviors to react to button-state
+
+    _changedButtonState: function() {
+      if (this._buttonStateChanged) {
+        this._buttonStateChanged(); // abstract
+      }
+    }
+
+  };
+
+  /** @polymerBehavior */
+  Polymer.IronButtonState = [
+    Polymer.IronA11yKeysBehavior,
+    Polymer.IronButtonStateImpl
+  ];
+
+</script>
+<!--
+Material design: [Surface reaction](https://www.google.com/design/spec/animation/responsive-interaction.html#responsive-interaction-surface-reaction)
+
+`paper-ripple` provides a visual effect that other paper elements can
+use to simulate a rippling effect emanating from the point of contact.  The
+effect can be visualized as a concentric circle with motion.
+
+Example:
+
+    <div style="position:relative">
+      <paper-ripple></paper-ripple>
+    </div>
+
+Note, it's important that the parent container of the ripple be relative position, otherwise
+the ripple will emanate outside of the desired container.
+
+`paper-ripple` listens to "mousedown" and "mouseup" events so it would display ripple
+effect when touches on it.  You can also defeat the default behavior and
+manually route the down and up actions to the ripple element.  Note that it is
+important if you call `downAction()` you will have to make sure to call
+`upAction()` so that `paper-ripple` would end the animation loop.
+
+Example:
+
+    <paper-ripple id="ripple" style="pointer-events: none;"></paper-ripple>
+    ...
+    downAction: function(e) {
+      this.$.ripple.downAction({x: e.x, y: e.y});
+    },
+    upAction: function(e) {
+      this.$.ripple.upAction();
+    }
+
+Styling ripple effect:
+
+  Use CSS color property to style the ripple:
+
+    paper-ripple {
+      color: #4285f4;
+    }
+
+  Note that CSS color property is inherited so it is not required to set it on
+  the `paper-ripple` element directly.
+
+By default, the ripple is centered on the point of contact.  Apply the `recenters`
+attribute to have the ripple grow toward the center of its container.
+
+    <paper-ripple recenters></paper-ripple>
+
+You can also  center the ripple inside its container from the start.
+
+    <paper-ripple center></paper-ripple>
+
+Apply `circle` class to make the rippling effect within a circle.
+
+    <paper-ripple class="circle"></paper-ripple>
+
+@group Paper Elements
+@element paper-ripple
+@hero hero.svg
+@demo demo/index.html
+-->
+
+<script>
+
+  /**
+   * `Polymer.PaperRippleBehavior` dynamically implements a ripple
+   * when the element has focus via pointer or keyboard.
+   *
+   * NOTE: This behavior is intended to be used in conjunction with and after
+   * `Polymer.IronButtonState` and `Polymer.IronControlState`.
+   *
+   * @polymerBehavior Polymer.PaperRippleBehavior
+   */
+  Polymer.PaperRippleBehavior = {
+
+    properties: {
+      /**
+       * If true, the element will not produce a ripple effect when interacted
+       * with via the pointer.
+       */
+      noink: {
+        type: Boolean,
+        observer: '_noinkChanged'
+      },
+
+      /**
+       * @type {Element|undefined}
+       */
+      _rippleContainer: {
+        type: Object,
+      }
+    },
+
+    /**
+     * Ensures a `<paper-ripple>` element is available when the element is
+     * focused.
+     */
+    _buttonStateChanged: function() {
+      if (this.focused) {
+        this.ensureRipple();
+      }
+    },
+
+    /**
+     * In addition to the functionality provided in `IronButtonState`, ensures
+     * a ripple effect is created when the element is in a `pressed` state.
+     */
+    _downHandler: function(event) {
+      Polymer.IronButtonStateImpl._downHandler.call(this, event);
+      if (this.pressed) {
+        this.ensureRipple(event);
+      }
+    },
+
+    /**
+     * Ensures this element contains a ripple effect. For startup efficiency
+     * the ripple effect is dynamically on demand when needed.
+     * @param {!Event=} optTriggeringEvent (optional) event that triggered the
+     * ripple.
+     */
+    ensureRipple: function(optTriggeringEvent) {
+      if (!this.hasRipple()) {
+        this._ripple = this._createRipple();
+        this._ripple.noink = this.noink;
+        var rippleContainer = this._rippleContainer || this.root;
+        if (rippleContainer) {
+          Polymer.dom(rippleContainer).appendChild(this._ripple);
+        }
+        if (optTriggeringEvent) {
+          // Check if the event happened inside of the ripple container
+          // Fall back to host instead of the root because distributed text
+          // nodes are not valid event targets
+          var domContainer = Polymer.dom(this._rippleContainer || this);
+          var target = Polymer.dom(optTriggeringEvent).rootTarget;
+          if (domContainer.deepContains( /** @type {Node} */(target))) {
+            this._ripple.uiDownAction(optTriggeringEvent);
+          }
+        }
+      }
+    },
+
+    /**
+     * Returns the `<paper-ripple>` element used by this element to create
+     * ripple effects. The element's ripple is created on demand, when
+     * necessary, and calling this method will force the
+     * ripple to be created.
+     */
+    getRipple: function() {
+      this.ensureRipple();
+      return this._ripple;
+    },
+
+    /**
+     * Returns true if this element currently contains a ripple effect.
+     * @return {boolean}
+     */
+    hasRipple: function() {
+      return Boolean(this._ripple);
+    },
+
+    /**
+     * Create the element's ripple effect via creating a `<paper-ripple>`.
+     * Override this method to customize the ripple element.
+     * @return {!PaperRippleElement} Returns a `<paper-ripple>` element.
+     */
+    _createRipple: function() {
+      return /** @type {!PaperRippleElement} */ (
+          document.createElement('paper-ripple'));
+    },
+
+    _noinkChanged: function(noink) {
+      if (this.hasRipple()) {
+        this._ripple.noink = noink;
+      }
+    }
+
+  };
+
+</script>
+<script>
+
+  /**
+   * `Polymer.PaperInkyFocusBehavior` implements a ripple when the element has keyboard focus.
+   *
+   * @polymerBehavior Polymer.PaperInkyFocusBehavior
+   */
+  Polymer.PaperInkyFocusBehaviorImpl = {
+
+    observers: [
+      '_focusedChanged(receivedFocusFromKeyboard)'
+    ],
+
+    _focusedChanged: function(receivedFocusFromKeyboard) {
+      if (receivedFocusFromKeyboard) {
+        this.ensureRipple();
+      }
+      if (this.hasRipple()) {
+        this._ripple.holdDown = receivedFocusFromKeyboard;
+      }
+    },
+
+    _createRipple: function() {
+      var ripple = Polymer.PaperRippleBehavior._createRipple();
+      ripple.id = 'ink';
+      ripple.setAttribute('center', '');
+      ripple.classList.add('circle');
+      return ripple;
+    }
+
+  };
+
+  /** @polymerBehavior Polymer.PaperInkyFocusBehavior */
+  Polymer.PaperInkyFocusBehavior = [
+    Polymer.IronButtonState,
+    Polymer.IronControlState,
+    Polymer.PaperRippleBehavior,
+    Polymer.PaperInkyFocusBehaviorImpl
+  ];
+
+</script>
+<style is="custom-style">
+
+  :root {
+
+    /* Material Design color palette for Google products */
+
+    --google-red-100: #f4c7c3;
+    --google-red-300: #e67c73;
+    --google-red-500: #db4437;
+    --google-red-700: #c53929;
+
+    --google-blue-100: #c6dafc;
+    --google-blue-300: #7baaf7;
+    --google-blue-500: #4285f4;
+    --google-blue-700: #3367d6;
+
+    --google-green-100: #b7e1cd;
+    --google-green-300: #57bb8a;
+    --google-green-500: #0f9d58;
+    --google-green-700: #0b8043;
+
+    --google-yellow-100: #fce8b2;
+    --google-yellow-300: #f7cb4d;
+    --google-yellow-500: #f4b400;
+    --google-yellow-700: #f09300;
+
+    --google-grey-100: #f5f5f5;
+    --google-grey-300: #e0e0e0;
+    --google-grey-500: #9e9e9e;
+    --google-grey-700: #616161;
+    
+    /* Material Design color palette from online spec document */
+
+    --paper-red-50: #ffebee;
+    --paper-red-100: #ffcdd2;
+    --paper-red-200: #ef9a9a;
+    --paper-red-300: #e57373;
+    --paper-red-400: #ef5350;
+    --paper-red-500: #f44336;
+    --paper-red-600: #e53935;
+    --paper-red-700: #d32f2f;
+    --paper-red-800: #c62828;
+    --paper-red-900: #b71c1c;
+    --paper-red-a100: #ff8a80;
+    --paper-red-a200: #ff5252;
+    --paper-red-a400: #ff1744;
+    --paper-red-a700: #d50000;
+ 
+    --paper-pink-50: #fce4ec;
+    --paper-pink-100: #f8bbd0;
+    --paper-pink-200: #f48fb1;
+    --paper-pink-300: #f06292;
+    --paper-pink-400: #ec407a;
+    --paper-pink-500: #e91e63;
+    --paper-pink-600: #d81b60;
+    --paper-pink-700: #c2185b;
+    --paper-pink-800: #ad1457;
+    --paper-pink-900: #880e4f;
+    --paper-pink-a100: #ff80ab;
+    --paper-pink-a200: #ff4081;
+    --paper-pink-a400: #f50057;
+    --paper-pink-a700: #c51162;
+ 
+    --paper-purple-50: #f3e5f5;
+    --paper-purple-100: #e1bee7;
+    --paper-purple-200: #ce93d8;
+    --paper-purple-300: #ba68c8;
+    --paper-purple-400: #ab47bc;
+    --paper-purple-500: #9c27b0;
+    --paper-purple-600: #8e24aa;
+    --paper-purple-700: #7b1fa2;
+    --paper-purple-800: #6a1b9a;
+    --paper-purple-900: #4a148c;
+    --paper-purple-a100: #ea80fc;
+    --paper-purple-a200: #e040fb;
+    --paper-purple-a400: #d500f9;
+    --paper-purple-a700: #aa00ff;
+ 
+    --paper-deep-purple-50: #ede7f6;
+    --paper-deep-purple-100: #d1c4e9;
+    --paper-deep-purple-200: #b39ddb;
+    --paper-deep-purple-300: #9575cd;
+    --paper-deep-purple-400: #7e57c2;
+    --paper-deep-purple-500: #673ab7;
+    --paper-deep-purple-600: #5e35b1;
+    --paper-deep-purple-700: #512da8;
+    --paper-deep-purple-800: #4527a0;
+    --paper-deep-purple-900: #311b92;
+    --paper-deep-purple-a100: #b388ff;
+    --paper-deep-purple-a200: #7c4dff;
+    --paper-deep-purple-a400: #651fff;
+    --paper-deep-purple-a700: #6200ea;
+ 
+    --paper-indigo-50: #e8eaf6;
+    --paper-indigo-100: #c5cae9;
+    --paper-indigo-200: #9fa8da;
+    --paper-indigo-300: #7986cb;
+    --paper-indigo-400: #5c6bc0;
+    --paper-indigo-500: #3f51b5;
+    --paper-indigo-600: #3949ab;
+    --paper-indigo-700: #303f9f;
+    --paper-indigo-800: #283593;
+    --paper-indigo-900: #1a237e;
+    --paper-indigo-a100: #8c9eff;
+    --paper-indigo-a200: #536dfe;
+    --paper-indigo-a400: #3d5afe;
+    --paper-indigo-a700: #304ffe;
+ 
+    --paper-blue-50: #e3f2fd;
+    --paper-blue-100: #bbdefb;
+    --paper-blue-200: #90caf9;
+    --paper-blue-300: #64b5f6;
+    --paper-blue-400: #42a5f5;
+    --paper-blue-500: #2196f3;
+    --paper-blue-600: #1e88e5;
+    --paper-blue-700: #1976d2;
+    --paper-blue-800: #1565c0;
+    --paper-blue-900: #0d47a1;
+    --paper-blue-a100: #82b1ff;
+    --paper-blue-a200: #448aff;
+    --paper-blue-a400: #2979ff;
+    --paper-blue-a700: #2962ff;
+ 
+    --paper-light-blue-50: #e1f5fe;
+    --paper-light-blue-100: #b3e5fc;
+    --paper-light-blue-200: #81d4fa;
+    --paper-light-blue-300: #4fc3f7;
+    --paper-light-blue-400: #29b6f6;
+    --paper-light-blue-500: #03a9f4;
+    --paper-light-blue-600: #039be5;
+    --paper-light-blue-700: #0288d1;
+    --paper-light-blue-800: #0277bd;
+    --paper-light-blue-900: #01579b;
+    --paper-light-blue-a100: #80d8ff;
+    --paper-light-blue-a200: #40c4ff;
+    --paper-light-blue-a400: #00b0ff;
+    --paper-light-blue-a700: #0091ea;
+ 
+    --paper-cyan-50: #e0f7fa;
+    --paper-cyan-100: #b2ebf2;
+    --paper-cyan-200: #80deea;
+    --paper-cyan-300: #4dd0e1;
+    --paper-cyan-400: #26c6da;
+    --paper-cyan-500: #00bcd4;
+    --paper-cyan-600: #00acc1;
+    --paper-cyan-700: #0097a7;
+    --paper-cyan-800: #00838f;
+    --paper-cyan-900: #006064;
+    --paper-cyan-a100: #84ffff;
+    --paper-cyan-a200: #18ffff;
+    --paper-cyan-a400: #00e5ff;
+    --paper-cyan-a700: #00b8d4;
+ 
+    --paper-teal-50: #e0f2f1;
+    --paper-teal-100: #b2dfdb;
+    --paper-teal-200: #80cbc4;
+    --paper-teal-300: #4db6ac;
+    --paper-teal-400: #26a69a;
+    --paper-teal-500: #009688;
+    --paper-teal-600: #00897b;
+    --paper-teal-700: #00796b;
+    --paper-teal-800: #00695c;
+    --paper-teal-900: #004d40;
+    --paper-teal-a100: #a7ffeb;
+    --paper-teal-a200: #64ffda;
+    --paper-teal-a400: #1de9b6;
+    --paper-teal-a700: #00bfa5;
+ 
+    --paper-green-50: #e8f5e9;
+    --paper-green-100: #c8e6c9;
+    --paper-green-200: #a5d6a7;
+    --paper-green-300: #81c784;
+    --paper-green-400: #66bb6a;
+    --paper-green-500: #4caf50;
+    --paper-green-600: #43a047;
+    --paper-green-700: #388e3c;
+    --paper-green-800: #2e7d32;
+    --paper-green-900: #1b5e20;
+    --paper-green-a100: #b9f6ca;
+    --paper-green-a200: #69f0ae;
+    --paper-green-a400: #00e676;
+    --paper-green-a700: #00c853;
+ 
+    --paper-light-green-50: #f1f8e9;
+    --paper-light-green-100: #dcedc8;
+    --paper-light-green-200: #c5e1a5;
+    --paper-light-green-300: #aed581;
+    --paper-light-green-400: #9ccc65;
+    --paper-light-green-500: #8bc34a;
+    --paper-light-green-600: #7cb342;
+    --paper-light-green-700: #689f38;
+    --paper-light-green-800: #558b2f;
+    --paper-light-green-900: #33691e;
+    --paper-light-green-a100: #ccff90;
+    --paper-light-green-a200: #b2ff59;
+    --paper-light-green-a400: #76ff03;
+    --paper-light-green-a700: #64dd17;
+ 
+    --paper-lime-50: #f9fbe7;
+    --paper-lime-100: #f0f4c3;
+    --paper-lime-200: #e6ee9c;
+    --paper-lime-300: #dce775;
+    --paper-lime-400: #d4e157;
+    --paper-lime-500: #cddc39;
+    --paper-lime-600: #c0ca33;
+    --paper-lime-700: #afb42b;
+    --paper-lime-800: #9e9d24;
+    --paper-lime-900: #827717;
+    --paper-lime-a100: #f4ff81;
+    --paper-lime-a200: #eeff41;
+    --paper-lime-a400: #c6ff00;
+    --paper-lime-a700: #aeea00;
+ 
+    --paper-yellow-50: #fffde7;
+    --paper-yellow-100: #fff9c4;
+    --paper-yellow-200: #fff59d;
+    --paper-yellow-300: #fff176;
+    --paper-yellow-400: #ffee58;
+    --paper-yellow-500: #ffeb3b;
+    --paper-yellow-600: #fdd835;
+    --paper-yellow-700: #fbc02d;
+    --paper-yellow-800: #f9a825;
+    --paper-yellow-900: #f57f17;
+    --paper-yellow-a100: #ffff8d;
+    --paper-yellow-a200: #ffff00;
+    --paper-yellow-a400: #ffea00;
+    --paper-yellow-a700: #ffd600;
+ 
+    --paper-amber-50: #fff8e1;
+    --paper-amber-100: #ffecb3;
+    --paper-amber-200: #ffe082;
+    --paper-amber-300: #ffd54f;
+    --paper-amber-400: #ffca28;
+    --paper-amber-500: #ffc107;
+    --paper-amber-600: #ffb300;
+    --paper-amber-700: #ffa000;
+    --paper-amber-800: #ff8f00;
+    --paper-amber-900: #ff6f00;
+    --paper-amber-a100: #ffe57f;
+    --paper-amber-a200: #ffd740;
+    --paper-amber-a400: #ffc400;
+    --paper-amber-a700: #ffab00;
+ 
+    --paper-orange-50: #fff3e0;
+    --paper-orange-100: #ffe0b2;
+    --paper-orange-200: #ffcc80;
+    --paper-orange-300: #ffb74d;
+    --paper-orange-400: #ffa726;
+    --paper-orange-500: #ff9800;
+    --paper-orange-600: #fb8c00;
+    --paper-orange-700: #f57c00;
+    --paper-orange-800: #ef6c00;
+    --paper-orange-900: #e65100;
+    --paper-orange-a100: #ffd180;
+    --paper-orange-a200: #ffab40;
+    --paper-orange-a400: #ff9100;
+    --paper-orange-a700: #ff6500;
+ 
+    --paper-deep-orange-50: #fbe9e7;
+    --paper-deep-orange-100: #ffccbc;
+    --paper-deep-orange-200: #ffab91;
+    --paper-deep-orange-300: #ff8a65;
+    --paper-deep-orange-400: #ff7043;
+    --paper-deep-orange-500: #ff5722;
+    --paper-deep-orange-600: #f4511e;
+    --paper-deep-orange-700: #e64a19;
+    --paper-deep-orange-800: #d84315;
+    --paper-deep-orange-900: #bf360c;
+    --paper-deep-orange-a100: #ff9e80;
+    --paper-deep-orange-a200: #ff6e40;
+    --paper-deep-orange-a400: #ff3d00;
+    --paper-deep-orange-a700: #dd2c00;
+ 
+    --paper-brown-50: #efebe9;
+    --paper-brown-100: #d7ccc8;
+    --paper-brown-200: #bcaaa4;
+    --paper-brown-300: #a1887f;
+    --paper-brown-400: #8d6e63;
+    --paper-brown-500: #795548;
+    --paper-brown-600: #6d4c41;
+    --paper-brown-700: #5d4037;
+    --paper-brown-800: #4e342e;
+    --paper-brown-900: #3e2723;
+ 
+    --paper-grey-50: #fafafa;
+    --paper-grey-100: #f5f5f5;
+    --paper-grey-200: #eeeeee;
+    --paper-grey-300: #e0e0e0;
+    --paper-grey-400: #bdbdbd;
+    --paper-grey-500: #9e9e9e;
+    --paper-grey-600: #757575;
+    --paper-grey-700: #616161;
+    --paper-grey-800: #424242;
+    --paper-grey-900: #212121;
+ 
+    --paper-blue-grey-50: #eceff1;
+    --paper-blue-grey-100: #cfd8dc;
+    --paper-blue-grey-200: #b0bec5;
+    --paper-blue-grey-300: #90a4ae;
+    --paper-blue-grey-400: #78909c;
+    --paper-blue-grey-500: #607d8b;
+    --paper-blue-grey-600: #546e7a;
+    --paper-blue-grey-700: #455a64;
+    --paper-blue-grey-800: #37474f;
+    --paper-blue-grey-900: #263238;
+
+    /* opacity for dark text on a light background */
+    --dark-divider-opacity: 0.12;
+    --dark-disabled-opacity: 0.38; /* or hint text or icon */
+    --dark-secondary-opacity: 0.54;
+    --dark-primary-opacity: 0.87;
+
+    /* opacity for light text on a dark background */
+    --light-divider-opacity: 0.12;
+    --light-disabled-opacity: 0.3; /* or hint text or icon */
+    --light-secondary-opacity: 0.7;
+    --light-primary-opacity: 1.0;
+
+  }
+
+</style>
+<!-- Taken from https://www.google.com/design/spec/style/color.html#color-ui-color-application -->
+
+<style is="custom-style">
+
+  :root {
+    /*
+     * You can use these generic variables in your elements for easy theming.
+     * For example, if all your elements use `--primary-text-color` as its main
+     * color, then switching from a light to a dark theme is just a matter of
+     * changing the value of `--primary-text-color` in your application.
+     */
+    --primary-text-color: var(--light-theme-text-color);
+    --primary-background-color: var(--light-theme-background-color);
+    --secondary-text-color: var(--light-theme-secondary-color);
+    --disabled-text-color: var(--light-theme-disabled-color);
+    --divider-color: var(--light-theme-divider-color);
+    --error-color: var(--paper-deep-orange-a700);
+
+    /*
+     * Primary and accent colors. Also see color.html for more colors.
+     */
+    --primary-color: var(--paper-indigo-500);
+    --light-primary-color: var(--paper-indigo-100);
+    --dark-primary-color: var(--paper-indigo-700);
+
+    --accent-color: var(--paper-pink-a200);
+    --light-accent-color: var(--paper-pink-a100);
+    --dark-accent-color: var(--paper-pink-a400);
+
+
+    /*
+     * Material Design Light background theme
+     */
+    --light-theme-background-color: #ffffff;
+    --light-theme-base-color: #000000;
+    --light-theme-text-color: var(--paper-grey-900);
+    --light-theme-secondary-color: #737373;  /* for secondary text and icons */
+    --light-theme-disabled-color: #9b9b9b;  /* disabled/hint text */
+    --light-theme-divider-color: #dbdbdb;
+
+    /*
+     * Material Design Dark background theme
+     */
+    --dark-theme-background-color: var(--paper-grey-900);
+    --dark-theme-base-color: #ffffff;
+    --dark-theme-text-color: #ffffff;
+    --dark-theme-secondary-color: #bcbcbc;  /* for secondary text and icons */
+    --dark-theme-disabled-color: #646464;  /* disabled/hint text */
+    --dark-theme-divider-color: #3c3c3c;
+
+    /*
+     * Deprecated values because of their confusing names.
+     */
+    --text-primary-color: var(--dark-theme-text-color);
+    --default-primary-color: var(--primary-color);
+
+  }
+
+</style>
+<!--
+Material design: [Icon toggles](https://www.google.com/design/spec/components/buttons.html#buttons-toggle-buttons)
+
+`paper-icon-button` is a button with an image placed at the center. When the user touches
+the button, a ripple effect emanates from the center of the button.
+
+`paper-icon-button` includes a default icon set.  Use `icon` to specify which icon
+from the icon set to use.
+
+    <paper-icon-button icon="menu"></paper-icon-button>
+
+See [`iron-iconset`](iron-iconset) for more information about
+how to use a custom icon set.
+
+Example:
+
+    <link href="path/to/iron-icons/iron-icons.html" rel="import">
+
+    <paper-icon-button icon="favorite"></paper-icon-button>
+    <paper-icon-button src="star.png"></paper-icon-button>
+
+To use `paper-icon-button` as a link, wrap it in an anchor tag. Since `paper-icon-button`
+will already receive focus, you may want to prevent the anchor tag from receiving focus
+as well by setting its tabindex to -1.
+
+    <a href="https://www.polymer-project.org" tabindex="-1">
+      <paper-icon-button icon="polymer"></paper-icon-button>
+    </a>
+
+### Styling
+
+Style the button with CSS as you would a normal DOM element. If you are using the icons
+provided by `iron-icons`, they will inherit the foreground color of the button.
+
+    /* make a red "favorite" button */
+    <paper-icon-button icon="favorite" style="color: red;"></paper-icon-button>
+
+By default, the ripple is the same color as the foreground at 25% opacity. You may
+customize the color using the `--paper-icon-button-ink-color` custom property.
+
+The following custom properties and mixins are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--paper-icon-button-disabled-text` | The color of the disabled button | `--disabled-text-color`
+`--paper-icon-button-ink-color` | Selected/focus ripple color | `--primary-text-color`
+`--paper-icon-button` | Mixin for a button | `{}`
+`--paper-icon-button-disabled` | Mixin for a disabled button | `{}`
+`--paper-icon-button-hover` | Mixin for button on hover | `{}`
+
+@group Paper Elements
+@element paper-icon-button
+@demo demo/index.html
+-->
+
+<script>
+
+  /**
+   * `Use Polymer.IronValidatableBehavior` to implement an element that validates user input.
+   * Use the related `Polymer.IronValidatorBehavior` to add custom validation logic to an iron-input.
+   *
+   * By default, an `<iron-form>` element validates its fields when the user presses the submit button.
+   * To validate a form imperatively, call the form's `validate()` method, which in turn will
+   * call `validate()` on all its children. By using `Polymer.IronValidatableBehavior`, your
+   * custom element will get a public `validate()`, which
+   * will return the validity of the element, and a corresponding `invalid` attribute,
+   * which can be used for styling.
+   *
+   * To implement the custom validation logic of your element, you must override
+   * the protected `_getValidity()` method of this behaviour, rather than `validate()`.
+   * See [this](https://github.com/PolymerElements/iron-form/blob/master/demo/simple-element.html)
+   * for an example.
+   *
+   * ### Accessibility
+   *
+   * Changing the `invalid` property, either manually or by calling `validate()` will update the
+   * `aria-invalid` attribute.
+   *
+   * @demo demo/index.html
+   * @polymerBehavior
+   */
+  Polymer.IronValidatableBehavior = {
+
+    properties: {
+
+      /**
+       * Namespace for this validator.
+       */
+      validatorType: {
+        type: String,
+        value: 'validator'
+      },
+
+      /**
+       * Name of the validator to use.
+       */
+      validator: {
+        type: String
+      },
+
+      /**
+       * True if the last call to `validate` is invalid.
+       */
+      invalid: {
+        notify: true,
+        reflectToAttribute: true,
+        type: Boolean,
+        value: false
+      },
+
+      _validatorMeta: {
+        type: Object
+      }
+
+    },
+
+    observers: [
+      '_invalidChanged(invalid)'
+    ],
+
+    get _validator() {
+      return this._validatorMeta && this._validatorMeta.byKey(this.validator);
+    },
+
+    ready: function() {
+      this._validatorMeta = new Polymer.IronMeta({type: this.validatorType});
+    },
+
+    _invalidChanged: function() {
+      if (this.invalid) {
+        this.setAttribute('aria-invalid', 'true');
+      } else {
+        this.removeAttribute('aria-invalid');
+      }
+    },
+
+    /**
+     * @return {boolean} True if the validator `validator` exists.
+     */
+    hasValidator: function() {
+      return this._validator != null;
+    },
+
+    /**
+     * Returns true if the `value` is valid, and updates `invalid`. If you want
+     * your element to have custom validation logic, do not override this method;
+     * override `_getValidity(value)` instead.
+
+     * @param {Object} value The value to be validated. By default, it is passed
+     * to the validator's `validate()` function, if a validator is set.
+     * @return {boolean} True if `value` is valid.
+     */
+    validate: function(value) {
+      this.invalid = !this._getValidity(value);
+      return !this.invalid;
+    },
+
+    /**
+     * Returns true if `value` is valid.  By default, it is passed
+     * to the validator's `validate()` function, if a validator is set. You
+     * should override this method if you want to implement custom validity
+     * logic for your element.
+     *
+     * @param {Object} value The value to be validated.
+     * @return {boolean} True if `value` is valid.
+     */
+
+    _getValidity: function(value) {
+      if (this.hasValidator()) {
+        return this._validator.validate(value);
+      }
+      return true;
+    }
+  };
+
+</script>
+<script>
+  /**
+  Polymer.IronFormElementBehavior enables a custom element to be included
+  in an `iron-form`.
+
+  @demo demo/index.html
+  @polymerBehavior
+  */
+  Polymer.IronFormElementBehavior = {
+
+    properties: {
+      /**
+       * Fired when the element is added to an `iron-form`.
+       *
+       * @event iron-form-element-register
+       */
+
+      /**
+       * Fired when the element is removed from an `iron-form`.
+       *
+       * @event iron-form-element-unregister
+       */
+
+      /**
+       * The name of this element.
+       */
+      name: {
+        type: String
+      },
+
+      /**
+       * The value for this element.
+       */
+      value: {
+        notify: true,
+        type: String
+      },
+
+      /**
+       * Set to true to mark the input as required. If used in a form, a
+       * custom element that uses this behavior should also use
+       * Polymer.IronValidatableBehavior and define a custom validation method.
+       * Otherwise, a `required` element will always be considered valid.
+       * It's also strongly recommended to provide a visual style for the element
+       * when its value is invalid.
+       */
+      required: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * The form that the element is registered to.
+       */
+      _parentForm: {
+        type: Object
+      }
+    },
+
+    attached: function() {
+      // Note: the iron-form that this element belongs to will set this
+      // element's _parentForm property when handling this event.
+      this.fire('iron-form-element-register');
+    },
+
+    detached: function() {
+      if (this._parentForm) {
+        this._parentForm.fire('iron-form-element-unregister', {target: this});
+      }
+    }
+
+  };
+
+</script>
+<script>
+
+  /**
+   * Use `Polymer.IronCheckedElementBehavior` to implement a custom element
+   * that has a `checked` property, which can be used for validation if the
+   * element is also `required`. Element instances implementing this behavior
+   * will also be registered for use in an `iron-form` element.
+   *
+   * @demo demo/index.html
+   * @polymerBehavior Polymer.IronCheckedElementBehavior
+   */
+  Polymer.IronCheckedElementBehaviorImpl = {
+
+    properties: {
+      /**
+       * Fired when the checked state changes.
+       *
+       * @event iron-change
+       */
+
+      /**
+       * Gets or sets the state, `true` is checked and `false` is unchecked.
+       */
+      checked: {
+        type: Boolean,
+        value: false,
+        reflectToAttribute: true,
+        notify: true,
+        observer: '_checkedChanged'
+      },
+
+      /**
+       * If true, the button toggles the active state with each tap or press
+       * of the spacebar.
+       */
+      toggles: {
+        type: Boolean,
+        value: true,
+        reflectToAttribute: true
+      },
+
+      /* Overriden from Polymer.IronFormElementBehavior */
+      value: {
+        type: String,
+        value: 'on',
+        observer: '_valueChanged'
+      }
+    },
+
+    observers: [
+      '_requiredChanged(required)'
+    ],
+
+    created: function() {
+      // Used by `iron-form` to handle the case that an element with this behavior
+      // doesn't have a role of 'checkbox' or 'radio', but should still only be
+      // included when the form is serialized if `this.checked === true`.
+      this._hasIronCheckedElementBehavior = true;
+    },
+
+    /**
+     * Returns false if the element is required and not checked, and true otherwise.
+     * @param {*=} _value Ignored.
+     * @return {boolean} true if `required` is false, or if `required` and `checked` are both true.
+     */
+    _getValidity: function(_value) {
+      return this.disabled || !this.required || (this.required && this.checked);
+    },
+
+    /**
+     * Update the aria-required label when `required` is changed.
+     */
+    _requiredChanged: function() {
+      if (this.required) {
+        this.setAttribute('aria-required', 'true');
+      } else {
+        this.removeAttribute('aria-required');
+      }
+    },
+
+    /**
+     * Fire `iron-changed` when the checked state changes.
+     */
+    _checkedChanged: function() {
+      this.active = this.checked;
+      this.fire('iron-change');
+    },
+
+    /**
+     * Reset value to 'on' if it is set to `undefined`.
+     */
+    _valueChanged: function() {
+      if (this.value === undefined || this.value === null) {
+        this.value = 'on';
+      }
+    }
+  };
+
+  /** @polymerBehavior Polymer.IronCheckedElementBehavior */
+  Polymer.IronCheckedElementBehavior = [
+    Polymer.IronFormElementBehavior,
+    Polymer.IronValidatableBehavior,
+    Polymer.IronCheckedElementBehaviorImpl
+  ];
+
+</script>
+<script>
+
+  /**
+   * Use `Polymer.PaperCheckedElementBehavior` to implement a custom element
+   * that has a `checked` property similar to `Polymer.IronCheckedElementBehavior`
+   * and is compatible with having a ripple effect.
+   * @polymerBehavior Polymer.PaperCheckedElementBehavior
+   */
+  Polymer.PaperCheckedElementBehaviorImpl = {
+
+    /**
+     * Synchronizes the element's checked state with its ripple effect.
+     */
+    _checkedChanged: function() {
+      Polymer.IronCheckedElementBehaviorImpl._checkedChanged.call(this);
+      if (this.hasRipple()) {
+        if (this.checked) {
+          this._ripple.setAttribute('checked', '');
+        } else {
+          this._ripple.removeAttribute('checked');
+        }
+      }
+    },
+
+    /**
+     * Synchronizes the element's `active` and `checked` state.
+     */
+    _buttonStateChanged: function() {
+      Polymer.PaperRippleBehavior._buttonStateChanged.call(this);
+      if (this.disabled) {
+        return;
+      }
+      if (this.isAttached) {
+        this.checked = this.active;
+      }
+    }
+
+  };
+
+  /** @polymerBehavior Polymer.PaperCheckedElementBehavior */
+  Polymer.PaperCheckedElementBehavior = [
+    Polymer.PaperInkyFocusBehavior,
+    Polymer.IronCheckedElementBehavior,
+    Polymer.PaperCheckedElementBehaviorImpl
+  ];
+
+</script>
+<!--
+Material design: [Checkbox](https://www.google.com/design/spec/components/selection-controls.html#selection-controls-checkbox)
+
+`paper-checkbox` is a button that can be either checked or unchecked.  User
+can tap the checkbox to check or uncheck it.  Usually you use checkboxes
+to allow user to select multiple options from a set.  If you have a single
+ON/OFF option, avoid using a single checkbox and use `paper-toggle-button`
+instead.
+
+Example:
+
+    <paper-checkbox>label</paper-checkbox>
+
+    <paper-checkbox checked> label</paper-checkbox>
+
+### Styling
+
+The following custom properties and mixins are available for styling:
+
+Custom property | Description | Default
+----------------|-------------|----------
+`--paper-checkbox-unchecked-background-color` | Checkbox background color when the input is not checked | `transparent`
+`--paper-checkbox-unchecked-color` | Checkbox border color when the input is not checked | `--primary-text-color`
+`--paper-checkbox-unchecked-ink-color` | Selected/focus ripple color when the input is not checked | `--primary-text-color`
+`--paper-checkbox-checked-color` | Checkbox color when the input is checked | `--primary-color`
+`--paper-checkbox-checked-ink-color` | Selected/focus ripple color when the input is checked | `--primary-color`
+`--paper-checkbox-checkmark-color` | Checkmark color | `white`
+`--paper-checkbox-label-color` | Label color | `--primary-text-color`
+`--paper-checkbox-label-spacing` | Spacing between the label and the checkbox | `8px`
+`--paper-checkbox-error-color` | Checkbox color when invalid | `--error-color`
+`--paper-checkbox-size` | Size of the checkbox | `18px`
+
+This element applies the mixin `--paper-font-common-base` but does not import `paper-styles/typography.html`.
+In order to apply the `Roboto` font to this element, make sure you've imported `paper-styles/typography.html`.
+
+@demo demo/index.html
+-->
+
+<!--
+`iron-media-query` can be used to data bind to a CSS media query.
+The `query` property is a bare CSS media query.
+The `query-matches` property is a boolean representing whether the page matches that media query.
+
+Example:
+
+    <iron-media-query query="(min-width: 600px)" query-matches="{{queryMatches}}"></iron-media-query>
+
+@group Iron Elements
+@demo demo/index.html
+@hero hero.svg
+@element iron-media-query
+-->
+
+<script>
+
+  Polymer({
+
+    is: 'iron-media-query',
+
+    properties: {
+
+      /**
+       * The Boolean return value of the media query.
+       */
+      queryMatches: {
+        type: Boolean,
+        value: false,
+        readOnly: true,
+        notify: true
+      },
+
+      /**
+       * The CSS media query to evaluate.
+       */
+      query: {
+        type: String,
+        observer: 'queryChanged'
+      },
+
+      /**
+       * If true, the query attribute is assumed to be a complete media query
+       * string rather than a single media feature.
+       */
+      full: {
+        type: Boolean,
+        value: false
+      },
+
+      /**
+       * @type {function(MediaQueryList)}
+       */
+      _boundMQHandler: {
+        value: function() {
+          return this.queryHandler.bind(this);
+        }
+      },
+
+      /**
+       * @type {MediaQueryList}
+       */
+      _mq: {
+        value: null
+      }
+    },
+
+    attached: function() {
+      this.style.display = 'none';
+      this.queryChanged();
+    },
+
+    detached: function() {
+      this._remove();
+    },
+
+    _add: function() {
+      if (this._mq) {
+        this._mq.addListener(this._boundMQHandler);
+      }
+    },
+
+    _remove: function() {
+      if (this._mq) {
+        this._mq.removeListener(this._boundMQHandler);
+      }
+      this._mq = null;
+    },
+
+    queryChanged: function() {
+      this._remove();
+      var query = this.query;
+      if (!query) {
+        return;
+      }
+      if (!this.full && query[0] !== '(') {
+        query = '(' + query + ')';
+      }
+      this._mq = window.matchMedia(query);
+      this._add();
+      this.queryHandler(this._mq);
+    },
+
+    queryHandler: function(mq) {
+      this._setQueryMatches(mq.matches);
+    }
+
+  });
+
+</script>
+<script>
+  /**
+   * `IronResizableBehavior` is a behavior that can be used in Polymer elements to
+   * coordinate the flow of resize events between "resizers" (elements that control the
+   * size or hidden state of their children) and "resizables" (elements that need to be
+   * notified when they are resized or un-hidden by their parents in order to take
+   * action on their new measurements).
+   * 
+   * Elements that perform measurement should add the `IronResizableBehavior` behavior to
+   * their element definition and listen for the `iron-resize` event on themselves.
+   * This event will be fired when they become showing after having been hidden,
+   * when they are resized explicitly by another resizable, or when the window has been
+   * resized.
+   * 
+   * Note, the `iron-resize` event is non-bubbling.
+   *
+   * @polymerBehavior Polymer.IronResizableBehavior
+   * @demo demo/index.html
+   **/
+  Polymer.IronResizableBehavior = {
+    properties: {
+      /**
+       * The closest ancestor element that implements `IronResizableBehavior`.
+       */
+      _parentResizable: {
+        type: Object,
+        observer: '_parentResizableChanged'
+      },
+
+      /**
+       * True if this element is currently notifying its descedant elements of
+       * resize.
+       */
+      _notifyingDescendant: {
+        type: Boolean,
+        value: false
+      }
+    },
+
+    listeners: {
+      'iron-request-resize-notifications': '_onIronRequestResizeNotifications'
+    },
+
+    created: function() {
+      // We don't really need property effects on these, and also we want them
+      // to be created before the `_parentResizable` observer fires:
+      this._interestedResizables = [];
+      this._boundNotifyResize = this.notifyResize.bind(this);
+    },
+
+    attached: function() {
+      this.fire('iron-request-resize-notifications', null, {
+        node: this,
+        bubbles: true,
+        cancelable: true
+      });
+
+      if (!this._parentResizable) {
+        window.addEventListener('resize', this._boundNotifyResize);
+        this.notifyResize();
+      }
+    },
+
+    detached: function() {
+      if (this._parentResizable) {
+        this._parentResizable.stopResizeNotificationsFor(this);
+      } else {
+        window.removeEventListener('resize', this._boundNotifyResize);
+      }
+
+      this._parentResizable = null;
+    },
+
+    /**
+     * Can be called to manually notify a resizable and its descendant
+     * resizables of a resize change.
+     */
+    notifyResize: function() {
+      if (!this.isAttached) {
+        return;
+      }
+
+      this._interestedResizables.forEach(function(resizable) {
+        if (this.resizerShouldNotify(resizable)) {
+          this._notifyDescendant(resizable);
+        }
+      }, this);
+
+      this._fireResize();
+    },
+
+    /**
+     * Used to assign the closest resizable ancestor to this resizable
+     * if the ancestor detects a request for notifications.
+     */
+    assignParentResizable: function(parentResizable) {
+      this._parentResizable = parentResizable;
+    },
+
+    /**
+     * Used to remove a resizable descendant from the list of descendants
+     * that should be notified of a resize change.
+     */
+    stopResizeNotificationsFor: function(target) {
+      var index = this._interestedResizables.indexOf(target);
+
+      if (index > -1) {
+        this._interestedResizables.splice(index, 1);
+        this.unlisten(target, 'iron-resize', '_onDescendantIronResize');
+      }
+    },
+
+    /**
+     * This method can be overridden to filter nested elements that should or
+     * should not be notified by the current element. Return true if an element
+     * should be notified, or false if it should not be notified.
+     *
+     * @param {HTMLElement} element A candidate descendant element that
+     * implements `IronResizableBehavior`.
+     * @return {boolean} True if the `element` should be notified of resize.
+     */
+    resizerShouldNotify: function(element) { return true; },
+
+    _onDescendantIronResize: function(event) {
+      if (this._notifyingDescendant) {
+        event.stopPropagation();
+        return;
+      }
+
+      // NOTE(cdata): In ShadowDOM, event retargetting makes echoing of the
+      // otherwise non-bubbling event "just work." We do it manually here for
+      // the case where Polymer is not using shadow roots for whatever reason:
+      if (!Polymer.Settings.useShadow) {
+        this._fireResize();
+      }
+    },
+
+    _fireResize: function() {
+      this.fire('iron-resize', null, {
+        node: this,
+        bubbles: false
+      });
+    },
+
+    _onIronRequestResizeNotifications: function(event) {
+      var target = event.path ? event.path[0] : event.target;
+
+      if (target === this) {
+        return;
+      }
+
+      if (this._interestedResizables.indexOf(target) === -1) {
+        this._interestedResizables.push(target);
+        this.listen(target, 'iron-resize', '_onDescendantIronResize');
+      }
+
+      target.assignParentResizable(this);
+      this._notifyDescendant(target);
+
+      event.stopPropagation();
+    },
+
+    _parentResizableChanged: function(parentResizable) {
+      if (parentResizable) {
+        window.removeEventListener('resize', this._boundNotifyResize);
+      }
+    },
+
+    _notifyDescendant: function(descendant) {
+      // NOTE(cdata): In IE10, attached is fired on children first, so it's
+      // important not to notify them if the parent is not attached yet (or
+      // else they will get redundantly notified when the parent attaches).
+      if (!this.isAttached) {
+        return;
+      }
+
+      this._notifyingDescendant = true;
+      descendant.notifyResize();
+      this._notifyingDescendant = false;
+    }
+  };
+</script>
+
+<!--
+app-drawer is a navigation drawer that can slide in from the left or right.
+
+Example:
+
+Align the drawer at the start, which is left in LTR layouts (default):
+
+```html
+<app-drawer opened></app-drawer>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer align="end" opened></app-drawer>
+```
+
+To make the contents of the drawer scrollable, create a wrapper for the scroll
+content, and apply height and overflow styles to it.
+
+```html
+<app-drawer>
+  <div style="height: 100%; overflow: auto;"></div>
+</app-drawer>
+```
+
+### Styling
+
+Custom property                  | Description                            | Default
+---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
+`--app-drawer-content-container` | Mixin for the drawer content container | {}
+`--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
+
+@demo app-drawer/demo.html
+-->
+
+<!--
+app-drawer-layout is a wrapper element that positions an app-drawer and other content. When
+the viewport width is smaller than `responsiveWidth`, this element changes to narrow layout.
+In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
+in/out to hide/reveal the main content.
+
+By default the drawer is aligned to the start, which is left in LTR layouts:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer-layout>
+  <app-drawer align="end">
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+With an app-header-layout:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <app-header-layout>
+    <app-header>
+      <app-toolbar>
+        <div title>App name</div>
+      </app-toolbar>
+    </app-header>
+
+    <!\-\- main content \-\->
+
+  </app-header-layout>
+</app-drawer-layout>
+```
+
+### Styling
+
+Custom property                          | Description                          | Default
+-----------------------------------------|--------------------------------------|---------
+`--app-drawer-layout-content-transition` | Transition for the content container | none
+
+@demo app-drawer-layout/demo.html
+-->
+
+<!--
+app-header-layout is a wrapper element that positions an app-header and other content. This
+element uses the document scroll by default, but it can also define its own scrolling region.
+
+Using the document scroll:
+
+```html
+<app-header-layout>
+  <app-header fixed condenses effects="waterfall">
+    <app-toolbar>
+      <div title>App name</div>
+    </app-toolbar>
+  </app-header>
+  <div>
+    <!\-\- content goes here \-\->
+  </div>
+</app-header-layout>
+```
+
+Using an own scrolling region:
+
+```html
+<app-header-layout has-scrolling-region style="width: 300px; height: 400px;">
+  <app-header fixed condenses effects="waterfall">
+    <app-toolbar>
+      <div title>App name</div>
+    </app-toolbar>
+  </app-header>
+  <div>
+    <!\-\- content goes here \-\->
+  </div>
+</app-header-layout>
+```
+
+@demo app-header-layout/demo1.html
+@demo app-header-layout/demo2.html
+-->
+
+<script>
+
+  /**
+   * `Polymer.IronScrollTargetBehavior` allows an element to respond to scroll events from a
+   * designated scroll target.
+   *
+   * Elements that consume this behavior can override the `_scrollHandler`
+   * method to add logic on the scroll event.
+   *
+   * @demo demo/scrolling-region.html Scrolling Region
+   * @demo demo/document.html Document Element
+   * @polymerBehavior
+   */
+  Polymer.IronScrollTargetBehavior = {
+
+    properties: {
+
+      /**
+       * Specifies the element that will handle the scroll event
+       * on the behalf of the current element. This is typically a reference to an element,
+       * but there are a few more posibilities:
+       *
+       * ### Elements id
+       *
+       *```html
+       * <div id="scrollable-element" style="overflow: auto;">
+       *  <x-element scroll-target="scrollable-element">
+       *    <!-- Content-->
+       *  </x-element>
+       * </div>
+       *```
+       * In this case, the `scrollTarget` will point to the outer div element. 
+       *
+       * ### Document scrolling
+       *
+       * For document scrolling, you can use the reserved word `document`:
+       *
+       *```html
+       * <x-element scroll-target="document">
+       *   <!-- Content -->
+       * </x-element>
+       *```
+       *
+       * ### Elements reference
+       *
+       *```js
+       * appHeader.scrollTarget = document.querySelector('#scrollable-element');
+       *```
+       * 
+       * @type {HTMLElement}
+       */
+      scrollTarget: {
+        type: HTMLElement,
+        value: function() {
+          return this._defaultScrollTarget;
+        }
+      }
+    },
+
+    observers: [
+      '_scrollTargetChanged(scrollTarget, isAttached)'
+    ],
+
+    _scrollTargetChanged: function(scrollTarget, isAttached) {
+      var eventTarget;
+
+      if (this._oldScrollTarget) {
+        eventTarget = this._oldScrollTarget === this._doc ? window : this._oldScrollTarget;
+        eventTarget.removeEventListener('scroll', this._boundScrollHandler);
+        this._oldScrollTarget = null;
+      }
+
+      if (!isAttached) {
+        return;
+      }
+      // Support element id references
+      if (scrollTarget === 'document') {
+
+        this.scrollTarget = this._doc;
+
+      } else if (typeof scrollTarget === 'string') {
+
+        this.scrollTarget = this.domHost ? this.domHost.$[scrollTarget] :
+            Polymer.dom(this.ownerDocument).querySelector('#' + scrollTarget);
+
+      } else if (this._isValidScrollTarget()) {
+
+        eventTarget = scrollTarget === this._doc ? window : scrollTarget;
+        this._boundScrollHandler = this._boundScrollHandler || this._scrollHandler.bind(this);
+        this._oldScrollTarget = scrollTarget;
+
+        eventTarget.addEventListener('scroll', this._boundScrollHandler);
+      }
+    },
+
+    /**
+     * Runs on every scroll event. Consumer of this behavior may override this method.
+     *
+     * @protected
+     */
+    _scrollHandler: function scrollHandler() {},
+
+    /**
+     * The default scroll target. Consumers of this behavior may want to customize
+     * the default scroll target.
+     *
+     * @type {Element}
+     */
+    get _defaultScrollTarget() {
+      return this._doc;
+    },
+
+    /**
+     * Shortcut for the document element
+     *
+     * @type {Element}
+     */
+    get _doc() {
+      return this.ownerDocument.documentElement;
+    },
+
+    /**
+     * Gets the number of pixels that the content of an element is scrolled upward.
+     *
+     * @type {number}
+     */
+    get _scrollTop() {
+      if (this._isValidScrollTarget()) {
+        return this.scrollTarget === this._doc ? window.pageYOffset : this.scrollTarget.scrollTop;
+      }
+      return 0;
+    },
+
+    /**
+     * Gets the number of pixels that the content of an element is scrolled to the left.
+     *
+     * @type {number}
+     */
+    get _scrollLeft() {
+      if (this._isValidScrollTarget()) {
+        return this.scrollTarget === this._doc ? window.pageXOffset : this.scrollTarget.scrollLeft;
+      }
+      return 0;
+    },
+
+    /**
+     * Sets the number of pixels that the content of an element is scrolled upward.
+     *
+     * @type {number}
+     */
+    set _scrollTop(top) {
+      if (this.scrollTarget === this._doc) {
+        window.scrollTo(window.pageXOffset, top);
+      } else if (this._isValidScrollTarget()) {
+        this.scrollTarget.scrollTop = top;
+      }
+    },
+
+    /**
+     * Sets the number of pixels that the content of an element is scrolled to the left.
+     *
+     * @type {number}
+     */
+    set _scrollLeft(left) {
+      if (this.scrollTarget === this._doc) {
+        window.scrollTo(left, window.pageYOffset);
+      } else if (this._isValidScrollTarget()) {
+        this.scrollTarget.scrollLeft = left;
+      }
+    },
+
+    /**
+     * Scrolls the content to a particular place.
+     *
+     * @method scroll
+     * @param {number} left The left position
+     * @param {number} top The top position
+     */
+    scroll: function(left, top) {
+       if (this.scrollTarget === this._doc) {
+        window.scrollTo(left, top);
+      } else if (this._isValidScrollTarget()) {
+        this.scrollTarget.scrollLeft = left;
+        this.scrollTarget.scrollTop = top;
+      }
+    },
+
+    /**
+     * Gets the width of the scroll target.
+     *
+     * @type {number}
+     */
+    get _scrollTargetWidth() {
+      if (this._isValidScrollTarget()) {
+        return this.scrollTarget === this._doc ? window.innerWidth : this.scrollTarget.offsetWidth;
+      }
+      return 0;
+    },
+
+    /**
+     * Gets the height of the scroll target.
+     *
+     * @type {number}
+     */
+    get _scrollTargetHeight() {
+      if (this._isValidScrollTarget()) {
+        return this.scrollTarget === this._doc ? window.innerHeight : this.scrollTarget.offsetHeight;
+      }
+      return 0;
+    },
+
+    /**
+     * Returns true if the scroll target is a valid HTMLElement.
+     *
+     * @return {boolean}
+     */
+    _isValidScrollTarget: function() {
+      return this.scrollTarget instanceof HTMLElement;
+    }
+  };
+
+</script>
+<script>
+  Polymer.AppLayout = Polymer.AppLayout || {};
+
+  Polymer.AppLayout.scrollEffects = Polymer.AppLayout.scrollEffects || {};
+
+  Polymer.AppLayout.scrollTimingFunction = function easeOutQuad(t, b, c, d) {
+    t /= d;
+    return -c * t*(t-2) + b;
+  };
+
+  /**
+   * Helper function that scrolls to a particular set of coordinates in a scroll target.
+   * If the scroll target is not defined, then it would use the main document as the target.
+   *
+   * To scroll in a smooth fashion, you can set the option `behavior: 'smooth'`. e.g.
+   *
+   * ```js
+   * Polymer.AppLayout.scroll({top: 0, behavior: 'smooth'});
+   * ```
+   *
+   * To scroll in a silent mode, without notifying scroll changes to any app-layout elements,
+   * you can set the option `behavior: 'silent'`. This is particularly useful we you are using
+   * `app-header` and you desire to scroll to the top of a scrolling region without running
+   * scroll effects. e.g.
+   *
+   * ```js
+   * Polymer.AppLayout.scroll({top: 0, behavior: 'silent'});
+   * ```
+   *
+   * @param {Object} options {top: Number, left: Number, behavior: String(smooth | silent)}
+   */
+  Polymer.AppLayout.scroll = function scroll(options) {
+    options = options || {};
+
+    var docEl = document.documentElement;
+    var target = options.target || docEl;
+    var hasNativeScrollBehavior = 'scrollBehavior' in target.style && target.scroll;
+    var scrollClassName = 'app-layout-silent-scroll';
+    var scrollTop = options.top || 0;
+    var scrollLeft = options.left || 0;
+    var scrollTo = target === docEl ? window.scrollTo :
+      function scrollTo(scrollLeft, scrollTop) {
+        target.scrollLeft = scrollLeft;
+        target.scrollTop = scrollTop;
+      };
+
+    if (options.behavior === 'smooth') {
+
+      if (hasNativeScrollBehavior) {
+
+        target.scroll(options);
+
+      } else {
+
+        var timingFn = Polymer.AppLayout.scrollTimingFunction;
+        var startTime = Date.now();
+        var currentScrollTop = target === docEl ? window.pageYOffset : target.scrollTop;
+        var currentScrollLeft = target === docEl ? window.pageXOffset : target.scrollLeft;
+        var deltaScrollTop = scrollTop - currentScrollTop;
+        var deltaScrollLeft = scrollLeft - currentScrollLeft;
+        var duration = 300;
+
+        (function updateFrame() {
+          var now = Date.now();
+          var elapsedTime = now - startTime;
+
+          if (elapsedTime < duration) {
+            scrollTo(
+                timingFn(elapsedTime, currentScrollLeft, deltaScrollLeft, duration),
+                timingFn(elapsedTime, currentScrollTop, deltaScrollTop, duration)
+              );
+            requestAnimationFrame(updateFrame.bind(this));
+          }
+        }).call(this);
+      }
+
+    } else if (options.behavior === 'silent') {
+
+      docEl.classList.add(scrollClassName);
+
+      // Browsers keep the scroll momentum even if the bottom of the scrolling content
+      // was reached. This means that calling scroll({top: 0, behavior: 'silent'}) when
+      // the momentum is still going will result in more scroll events and thus scroll effects.
+      // This seems to only apply when using document scrolling.
+      // Therefore, when should we remove the class from the document element?
+
+      clearInterval(Polymer.AppLayout._scrollTimer);
+
+      Polymer.AppLayout._scrollTimer = setTimeout(function() {
+        docEl.classList.remove(scrollClassName);
+        Polymer.AppLayout._scrollTimer = null;
+      }, 100);
+
+      scrollTo(scrollLeft, scrollTop);
+
+    } else {
+
+      scrollTo(scrollLeft, scrollTop);
+
+    }
+  };
+
+</script>
+<script>
+  /**
+   * `Polymer.AppScrollEffectsBehavior` provides an interface that allows an element to use scrolls effects.
+   *
+   * ### Importing the app-layout effects
+   *
+   * app-layout provides a set of scroll effects that can be used by explicitly importing
+   * `app-scroll-effects.html`:
+   *
+   * ```html
+   * <link rel="import" href="/bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+   * ```
+   *
+   * The scroll effects can also be used by individually importing
+   * `app-layout/app-scroll-effects/effects/[effectName].html`. For example:
+   *
+   * ```html
+   *  <link rel="import" href="/bower_components/app-layout/app-scroll-effects/effects/waterfall.html">
+   * ```
+   *
+   * ### Consuming effects
+   *
+   * Effects can be consumed via the `effects` property. For example:
+   *
+   * ```html
+   * <app-header effects="waterfall"></app-header>
+   * ```
+   *
+   * ### Creating scroll effects
+   *
+   * You may want to create a custom scroll effect if you need to modify the CSS of an element
+   * based on the scroll position.
+   *
+   * A scroll effect definition is an object with `setUp()`, `tearDown()` and `run()` functions.
+   * The effect name is used as the key to register the definition in the `Polymer.AppLayout.scrollEffects`
+   * namespace. For example, let's define an effect that resizes the header's logo:
+   *
+   * ```js
+   * Polymer.AppLayout.scrollEffects.logo = {
+   *   setUp: function(config) {
+   *     // the effect's config is passed to the setUp.
+   *     this._fxResizeLogo = { logo: Polymer.dom(this).querySelector('[logo]') };
+   *   },
+   *
+   *   run: function(progress) {
+   *      // the progress of the effect
+   *      this.transform('scale3d(' + progress + ', '+ progress +', 1)',  this._fxResizeLogo.logo);
+   *   },
+   *
+   *   tearDown: function() {
+   *      // clean up and reset of states
+   *      delete this._fxResizeLogo;
+   *   }
+   * };
+   * ```
+   * Now, you can consume the effect:
+   *
+   * ```html
+   * <app-header id="appHeader" effects="logo">
+   *   <img logo src="logo.svg">
+   * </app-header>
+   * ```
+   *
+   * ### Imperative API
+   *
+   * ```js
+   * var logoEffect = appHeader.createEffect('logo', effectConfig);
+   * // run the effect: logoEffect.run(progress);
+   * // tear down the effect: logoEffect.tearDown();
+   * ```
+   *
+   * ### Configuring effects
+   *
+   * For effects installed via the `effects` property, their configuration can be set
+   * via the `effectsConfig` property. For example:
+   *
+   * ```html
+   * <app-header effects="waterfall"
+   *   effects-config='{"waterfall": {"startsAt": 0, "endsAt": 0.5}}'>
+   * </app-header>
+   * ```
+   *
+   * All effects have a `startsAt` and `endsAt` config property. They specify at what
+   * point the effect should start and end. This value goes from 0 to 1 inclusive.
+   *
+   * @polymerBehavior
+   */
+  Polymer.AppScrollEffectsBehavior = [
+    Polymer.IronScrollTargetBehavior,
+   {
+
+    properties: {
+
+      /**
+       * A space-separated list of the effects names that will be triggered when the user scrolls.
+       * e.g. `waterfall parallax-background` installs the `waterfall` and `parallax-background`.
+       */
+      effects: {
+        type: String,
+        value: ''
+      },
+
+      /**
+       * An object that configurates the effects installed via the `effects` property. e.g.
+       * ```js
+       *  element.effectsConfig = {
+       *   "blend-background": {
+       *     "startsAt": 0.5
+       *   }
+       * };
+       * ```
+       * Every effect has at least two config properties: `startsAt` and `endsAt`.
+       * These properties indicate when the event should start and end respectively
+       * and relative to the overall element progress. So for example, if `blend-background`
+       * starts at `0.5`, the effect will only start once the current element reaches 0.5
+       * of its progress. In this context, the progress is a value in the range of `[0, 1]`
+       * that indicates where this element is on the screen relative to the viewport.
+       */
+      effectsConfig: {
+        type: Object,
+        value: function() {
+          return {};
+        }
+      },
+
+      /**
+       * Disables CSS transitions and scroll effects on the element.
+       */
+      disabled: {
+        type: Boolean,
+        reflectToAttribute: true,
+        value: false
+      }
+    },
+
+    observers: [
+      '_effectsChanged(effects, effectsConfig)'
+    ],
+
+    /**
+     * Updates the scroll state. This method should be overridden
+     * by the consumer of this behavior.
+     *
+     * @method _updateScrollState
+     */
+    _updateScrollState: function() {},
+
+    /**
+     * Returns true if the current element is on the screen.
+     * That is, visible in the current viewport. This method should be
+     * overridden by the consumer of this behavior.
+     *
+     * @method isOnScreen
+     * @return {boolean}
+     */
+    isOnScreen: function() {
+      return false;
+    },
+
+    /**
+     * Returns true if there's content below the current element. This method
+     * should be overridden by the consumer of this behavior.
+     *
+     * @method isContentBelow
+     * @return {boolean}
+     */
+    isContentBelow: function() {
+      return false;
+    },
+
+    /**
+     * List of effects handlers that will take place during scroll.
+     *
+     * @type {Array<Function>}
+     */
+    _effectsRunFn: null,
+
+    /**
+     * List of the effects definitions installed via the `effects` property.
+     *
+     * @type {Array<Object>}
+     */
+    _effects: null,
+
+    /**
+     * The clamped value of `_scrollTop`.
+     * @type number
+     */
+    get _clampedScrollTop() {
+      return Math.max(0, this._scrollTop);
+    },
+
+    created: function() {
+      this._effectsRunFn = [];
+      this._effects = [];
+    },
+
+    detached: function() {
+      this._tearDownEffects();
+    },
+
+    /**
+     * Creates an effect object from an effect name and configuration that can be used to run
+     * effects programmatically.
+     *
+     * @method createEffect
+     * @param {string} effectName The name of an effect defined in `Polymer.AppLayout.scrollEffects`
+     * @param {Object=} effectConfig The effect config object if the effect accepts config
+     *   values. (Optional)
+     * @return {Object} The effect object. This object has the following interface:
+     *
+     *  * `obj.setUp()`, Sets up the requirements for the effect.
+     *       This function is called automatically before the `effect` function returns.
+     *  * `obj.run(progress, y)`, Runs the effect given a `progress`.
+     *  * `obj.tearDown()`, Cleans up any DOM nodes or element references used by the effect.
+     *
+     * Example:
+     * ```js
+     * var parallax = obj.createEffect('parallax-background');
+     * // runs the effect
+     * parallax.run(0.5, 0);
+     * ```
+     */
+    createEffect: function(effectName, effectConfig) {
+      var effectDef = Polymer.AppLayout.scrollEffects[effectName];
+      if (!effectDef) {
+        throw new ReferenceError(this._getUndefinedMsg(effectName));
+      }
+      var prop = this._boundEffect(effectDef, effectConfig || {});
+      prop.setUp();
+      return prop;
+    },
+
+    /**
+     * Called when `effects` or `effectsConfig` changes.
+     */
+    _effectsChanged: function(effects, effectsConfig) {
+      this._tearDownEffects();
+
+      if (effects === '') {
+        return;
+      }
+      effects.split(' ').forEach(function(effectName) {
+        var effectDef;
+        if (effectName !== '') {
+          if ((effectDef = Polymer.AppLayout.scrollEffects[effectName])) {
+            this._effects.push(this._boundEffect(effectDef, effectsConfig[effectName]));
+          } else {
+            this._warn(this._logf('_effectsChanged', this._getUndefinedMsg(effectName)));
+          }
+        }
+      }, this);
+
+      this._setUpEffect();
+    },
+
+    /**
+     * Forces layout
+     */
+    _layoutIfDirty: function() {
+      return this.offsetWidth;
+    },
+
+    /**
+     * Returns an effect object bound to the current context.
+     *
+     * @param {Object} effectDef
+     * @param {Object=} effectsConfig The effect config object if the effect accepts config values. (Optional)
+     */
+    _boundEffect: function(effectDef, effectsConfig) {
+      effectsConfig = effectsConfig || {};
+      var startsAt = parseFloat(effectsConfig.startsAt || 0);
+      var endsAt = parseFloat(effectsConfig.endsAt || 1);
+      var deltaS = endsAt - startsAt;
+      var noop = Function();
+      // fast path if possible
+      var runFn = (startsAt === 0 && endsAt === 1) ? effectDef.run :
+        function(progress, y) {
+          effectDef.run.call(this,
+              Math.max(0, (progress - startsAt) / deltaS), y);
+        };
+      return {
+        setUp: effectDef.setUp ? effectDef.setUp.bind(this, effectsConfig) : noop,
+        run: effectDef.run ? runFn.bind(this) : noop,
+        tearDown: effectDef.tearDown ? effectDef.tearDown.bind(this) : noop
+      };
+    },
+
+    /**
+     * Sets up the effects.
+     */
+    _setUpEffect: function() {
+      if (this.isAttached) {
+        this._effectsRunFn = [];
+        this._effects.forEach(function(effectDef) {
+          // install the effect only if no error was reported
+          if (effectDef.setUp() !== false) {
+            this._effectsRunFn.push(effectDef.run);
+          }
+        }, this);
+      }
+    },
+
+    /**
+     * Tears down the effects.
+     */
+    _tearDownEffects: function() {
+      this._effects.forEach(function(effectDef) {
+        effectDef.tearDown();
+      });
+      this._effectsRunFn = [];
+      this._effects = [];
+    },
+
+    /**
+     * Runs the effects.
+     *
+     * @param {number} p The progress
+     * @param {number} y The top position of the current element relative to the viewport.
+     */
+    _runEffects: function(p, y) {
+      this._effectsRunFn.forEach(function(run) {
+        run(p, y);
+      });
+    },
+
+    /**
+     * Overrides the `_scrollHandler`.
+     */
+    _scrollHandler: function() {
+      if (!this.disabled) {
+        this._updateScrollState(this._clampedScrollTop);
+      }
+    },
+
+    _getUndefinedMsg: function(effectName) {
+      return 'Scroll effect `' + effectName + '` is undefined. ' +
+          'Did you forget to import app-layout/app-scroll-effects/effects/' + effectName + '.html ?';
+    }
+
+  }];
+
+</script>
+<!--
+app-header is container element for app-toolbars at the top of the screen that can have scroll
+effects. By default, an app-header moves away from the viewport when scrolling down and
+if using `reveals`, the header slides back when scrolling back up. For example:
+
+```html
+<app-header reveals>
+  <app-toolbar>
+    <div title>App name</div>
+  </app-toolbar>
+</app-header>
+```
+
+app-header can also condense when scrolling down. To achieve this behavior, the header
+must have a larger height than the `primary` element in the light DOM. For example:
+
+```html
+<app-header style="height: 96px;" condenses fixed>
+  <app-toolbar style="height: 64px;">
+    <div title>App name</div>
+  </app-toolbar>
+</app-header>
+```
+
+In this case the header is initially `96px` tall, and it shrinks to `64px` when scrolling down.
+That is what is meant by "condensing".
+
+### Primary element
+
+This is the element in the light DOM that remains at the top of the header when this is condensed.
+By default, if no element in the light DOM has the `primary` attribute, the `primary` element
+becomes the first instance of app-toolbar. For example:
+
+```html
+<app-header condenses>
+  <app-toolbar> Primary element </app-toolbar>
+</app-header>
+```
+
+```html
+<app-header condenses>
+  <app-toolbar></app-toolbar>
+  <app-toolbar primary> Primary element </app-toolbar>
+</app-header>
+```
+
+The primary element must be a direct child of app-header.
+
+### Scroll target
+
+The app-header's `scrollTarget` property allows to customize the scrollable element to which
+the header responds when the user scrolls. By default, app-header uses the document as
+the scroll target, but you can customize this property by setting the id of the element, e.g.
+
+```html
+<div id="scrollingRegion" style="overflow-y: auto;">
+  <app-header scroll-target="scrollingRegion">
+  </app-header>
+</div>
+```
+
+In this case, the `scrollTarget` property points to the outer div element. Alternatively,
+you can set this property programmatically:
+
+```js
+appHeader.scrollTarget = document.querySelector("#scrollingRegion");
+```
+
+## Backgrounds
+app-header has two background layers that can be used for styling when the header is condensed
+or when the scrollable element is scrolled to the top.
+
+## Scroll effects
+
+Scroll effects are _optional_ visual effects applied in app-header based on scroll position. For example,
+The [Material Design scrolling techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
+recommends effects that can be installed via the `effects` property. e.g.
+
+```html
+<app-header effects="waterfall">
+  <app-toolbar>App name</app-toolbar>
+</app-header>
+```
+
+#### Importing the effects
+
+To use the scroll effects, you must explicitly import them in addition to `app-header`:
+
+```html
+<link rel="import" href="/bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+```
+
+#### List of effects
+
+* **blend-background**
+Fades in/out two background elements by applying CSS opacity based on scroll position.
+You can use this effect to smoothly change the background color or image of the header.
+For example, using the mixin `--app-header-background-rear-layer` lets you assign a different
+background when the header is condensed:
+
+```css
+app-header {
+  background-color: red;
+  --app-header-background-rear-layer: {
+    /* The header is blue when condensed */
+    background-color: blue;
+  };
+}
+```
+
+* **fade-background**
+Upon scrolling past a threshold, this effect will trigger an opacity transition to
+fade in/out the backgrounds. Compared to the `blend-background` effect,
+this effect doesn't interpolate the opacity based on scroll position.
+
+
+* **parallax-background**
+A simple parallax effect that vertically translates the backgrounds based on a fraction
+of the scroll position. For example:
+
+```css
+app-header {
+  --app-header-background-front-layer: {
+    background-image: url(...);
+  };
+}
+```
+```html
+<app-header style="height: 300px;" effects="parallax-background">
+  <app-toolbar>App name</app-toolbar>
+</app-header>
+```
+
+The fraction determines how far the background moves relative to the scroll position.
+This value can be assigned via the `scalar` config value and it is typically a value
+between 0 and 1 inclusive. If `scalar=0`, the background doesn't move away from the header.
+[More about configuration for scroll effects](/app-scroll-effects#configuring-effects)
+
+* **resize-title**
+Progressively interpolates the size of the title element based on the scroll position.
+This effect requires two title elements in the light dom. One that has the `title` attribute
+and represents the state when the header is completely visible and another with the
+`condensed-title` attribute when the header is condensed. For example:
+
+```html
+<app-header condenses reveals effects="resize-title">
+  <app-toolbar>
+      <h4 condensed-title>App name</h4>
+  </app-toolbar>
+  <app-toolbar>
+      <h1 title>App name</h1>
+  </app-toolbar>
+</app-header>
+```
+
+* **resize-snapped-title**
+Upon scrolling past a threshold, this effect fades in/out the titles using opacity transitions.
+Similarly to `resize-title`, the `title` and `condensed-title` elements must be placed in the
+light DOM.
+
+* **waterfall**
+Toggles the shadow property in app-header to create a sense of depth (as recommended in the
+MD spec) between the header and the underneath content. You can change the shadow by
+customizing the `--app-header-shadow` mixin. For example:
+
+```css
+app-header {
+  --app-header-shadow: {
+    box-shadow: inset 0px 5px 2px -3px rgba(0, 0, 0, 0.2);
+  };
+}
+```
+
+```html
+<app-header condenses reveals effects="waterfall">
+  <app-toolbar>
+      <h1 title>App name</h1>
+  </app-toolbar>
+</app-header>
+```
+
+* **material**
+Installs the waterfall, resize-title, blend-background and parallax-background effects.
+
+## Styling
+
+Mixin | Description | Default
+----------------|-------------|----------
+`--app-header-background-front-layer` | Applies to the front layer of the background | {}
+`--app-header-background-rear-layer` | Applies to the rear layer of the background | {}
+`--app-header-shadow` | Applies to the shadow | {}
+
+@demo app-header/demo/demo1.html
+@demo app-header/demo/demo2.html
+@demo app-header/demo/demo3.html
+@demo app-header/demo/music.html
+@demo app-header/demo/notes.html
+@demo app-header/demo/pesto.html
+@demo app-header/demo/give.html
+-->
+
+<script>
+  /**
+   * While scrolling down, fade in the rear background layer and fade out the front background
+   * layer (opacity interpolated based on scroll position).
+   */
+  Polymer.AppLayout.scrollEffects['blend-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    setUp: function setUp() {
+      this.$.backgroundFrontLayer.style.willChange = 'opacity';
+      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.willChange = 'opacity';
+      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.opacity = 0;
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
+      this.$.backgroundFrontLayer.style.opacity = 1 - p;
+      this.$.backgroundRearLayer.style.opacity = p;
+    }
+  };
+</script>
+<script>
+  /**
+   * Upon scrolling past a threshold, fade in the rear background layer and fade out the front
+   * background layer (opacity CSS transitioned over time).
+   */
+  Polymer.AppLayout.scrollEffects['fade-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    setUp: function setUp(config) {
+      var duration = config.duration || '0.5s';
+      this.$.backgroundFrontLayer.style.willChange = 'opacity';
+      this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundFrontLayer.style.transitionProperty = 'opacity';
+      this.$.backgroundFrontLayer.style.transitionDuration = duration;
+      this.$.backgroundRearLayer.style.willChange = 'opacity';
+      this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
+      this.$.backgroundRearLayer.style.transitionProperty = 'opacity';
+      this.$.backgroundRearLayer.style.transitionDuration = duration;
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
+      if (p >= 1) {
+        this.$.backgroundFrontLayer.style.opacity = 0;
+        this.$.backgroundRearLayer.style.opacity = 1;
+      } else {
+        this.$.backgroundFrontLayer.style.opacity = 1;
+        this.$.backgroundRearLayer.style.opacity = 0;
+      }
+    }
+  };
+</script>
+<script>
+  /**
+   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
+   * between the element and the content underneath.
+   */
+  Polymer.AppLayout.scrollEffects.waterfall = {
+    /**
+     *  @this Polymer.AppLayout.ElementWithBackground
+     */
+    run: function run(p, y) {
+      this.shadow = this.isOnScreen() && this.isContentBelow();
+    }
+  };
+</script>
+<script>
+  (function() {
+    function interpolate(progress, points, fn, ctx) {
+      fn.apply(ctx, points.map(function(point) {
+        return point[0] + (point[1] - point[0]) * progress;
+      }));
+    }
+
+    /**
+     * Transform the font size of a designated title element between two values based on the scroll
+     * position.
+     */
+    Polymer.AppLayout.scrollEffects['resize-title'] = {
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      setUp: function setUp() {
+        var title = Polymer.dom(this).querySelector('[title]');
+        var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+
+        if (!condensedTitle) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
+          return false;
+        }
+        if (!title) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
+          return false;
+        }
+
+        condensedTitle.style.willChange = 'opacity';
+        title.style.willChange = 'opacity';
+
+        condensedTitle.style.webkitTransform = 'translateZ(0)';
+        title.style.webkitTransform = 'translateZ(0)';
+
+        var titleClientRect = title.getBoundingClientRect();
+        var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
+        var fx = {};
+
+        fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
+            parseInt(window.getComputedStyle(title)['font-size'], 10);
+        fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
+        fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
+        fx.condensedTitle = condensedTitle;
+        fx.title = title;
+
+        this._fxResizeTitle = fx;
+      },
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      tearDown: function tearDown() {
+        delete this._fxResizeTitle;
+      },
+      /** @this PolymerElement */
+      run: function run(p, y) {
+        var fx = this._fxResizeTitle;
+        if (!this.condenses) {
+          y = 0;
+        }
+        if (p >= 1) {
+          fx.title.style.opacity = 0;
+          fx.condensedTitle.style.opacity = 1;
+        } else {
+          fx.title.style.opacity = 1;
+          fx.condensedTitle.style.opacity = 0;
+        }
+
+        interpolate(Math.min(1, p),
+          [
+            [1, fx.scale],
+            [0, -fx.titleDX],
+            [y, y-fx.titleDY]
+          ],
+          function(scale, translateX, translateY) {
+            this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
+                'scale3d(' + scale + ', ' + scale + ', 1)', fx.title);
+          }, this);
+      }
+    };
+  })();
+</script>
+<script>
+  /**
+   * Vertically translate the background based on a factor of the scroll position.
+   */
+  Polymer.AppLayout.scrollEffects['parallax-background'] = {
+    /**
+     * @param {{scalar: string}} config
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
+    setUp: function setUp(config) {
+      var scalar = parseFloat(config.scalar);
+
+      this._deltaBg = this.$.backgroundFrontLayer.offsetHeight - this.$.background.offsetHeight;
+      if (this._deltaBg === 0) {
+        if (isNaN(scalar)) {
+          scalar = 0.8;
+        }
+        this._deltaBg = this._dHeight * scalar;
+      } else {
+        if (isNaN(scalar)) {
+          scalar = 1;
+        }
+        this._deltaBg = this._deltaBg * scalar;
+      }
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    tearDown: function tearDown() {
+      delete this._deltaBg;
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
+      this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundFrontLayer);
+      if (this.$.backgroundRearLayer) {
+        this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundRearLayer);
+      }
+    }
+  };
+</script>
+<script>
+  /**
+   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
+   */
+  Polymer.AppLayout.scrollEffects.material = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
+    setUp: function setUp() {
+      this.effects = 'waterfall resize-title blend-background parallax-background';
+      return false;
+    }
+  };
+</script>
+<script>
+  /**
+   * Upon scrolling past a threshold, CSS transition the font size of a designated title element
+   * between two values.
+   */
+  Polymer.AppLayout.scrollEffects['resize-snapped-title'] = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
+    setUp: function setUp(config) {
+      var title = Polymer.dom(this).querySelector('[title]');
+      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+      var duration = config.duration || '0.2s';
+      var fx = {};
+
+      if (!condensedTitle) {
+        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `condensed-title`'));
+        return false;
+      }
+      if (!title) {
+        this._warn(this._logf('effects[resize-snapped-title]', 'undefined `title`'));
+        return false;
+      }
+
+      title.style.transitionProperty = 'opacity';
+      title.style.transitionDuration = duration;
+      condensedTitle.style.transitionProperty = 'opacity';
+      condensedTitle.style.transitionDuration = duration;
+
+      fx.condensedTitle = condensedTitle;
+      fx.title = title;
+      this._fxResizeSnappedTitle = fx;
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    tearDown: function tearDown() {
+      var fx = this._fxResizeSnappedTitle;
+      fx.title.style.transition = '';
+      fx.condensedTitle.style.transition = '';
+      delete this._fxResizeSnappedTitle;
+    },
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
+      var fx = this._fxResizeSnappedTitle;
+      if (p > 0) {
+        fx.title.style.opacity = 0;
+        fx.condensedTitle.style.opacity = 1;
+      } else {
+        fx.title.style.opacity = 1;
+        fx.condensedTitle.style.opacity = 0;
+      }
+    }
+  };
+</script>
+<!--
 app-toolbar is a horizontal toolbar containing items that can be used for
 label, navigation, search and actions.
 
@@ -10563,44 +14480,2450 @@ Custom property              | Description                  | Default
 <style>
 
     body {
-      font-family: 'Roboto', sans-serif;
       margin: 0;
-      background-color: #e5e5e5;
-    }
-
-    app-toolbar {
-      background-color: white;
-      box-shadow: 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
-    }
-
-    .content {
-      padding: 16px 40px;
-    }
-
-    .card {
-      background-color: white;
-      max-width: 720px;
-      height: 500px;
-      margin: 16px auto;
-      box-shadow: 0 1px 4px 0 rgba(0, 0, 0, 0.37);
-    }
-
-    @media (max-width: 600px) {
-
-      .content {
-        padding: 0;
-      }
-
-      .card {
-        margin: 8px;
-      }
-
+      font-family: sans-serif;
+      background-color: #f5f5f5;
     }
 
   </style>
 
 </head>
-<body><div hidden="" by-vulcanize=""><dom-module id="app-toolbar" assetpath="../../app-toolbar/">
+<body unresolved=""><div hidden="" by-vulcanize=""><dom-module id="iron-icon" assetpath="../../../iron-icon/">
+
+  <style>
+    :host {
+      @apply(--layout-inline);
+      @apply(--layout-center-center);
+      position: relative;
+
+      vertical-align: middle;
+
+      fill: var(--iron-icon-fill-color, currentcolor);
+      stroke: var(--iron-icon-stroke-color, none);
+
+      width: var(--iron-icon-width, 24px);
+      height: var(--iron-icon-height, 24px);
+    }
+  </style>
+
+  <template>
+  </template>
+
+  <script>
+
+    Polymer({
+
+      is: 'iron-icon',
+
+      properties: {
+
+        /**
+         * The name of the icon to use. The name should be of the form:
+         * `iconset_name:icon_name`.
+         */
+        icon: {
+          type: String,
+          observer: '_iconChanged'
+        },
+
+        /**
+         * The name of the theme to used, if one is specified by the
+         * iconset.
+         */
+        theme: {
+          type: String,
+          observer: '_updateIcon'
+        },
+
+        /**
+         * If using iron-icon without an iconset, you can set the src to be
+         * the URL of an individual icon image file. Note that this will take
+         * precedence over a given icon attribute.
+         */
+        src: {
+          type: String,
+          observer: '_srcChanged'
+        },
+
+        /**
+         * @type {!Polymer.IronMeta}
+         */
+        _meta: {
+          value: Polymer.Base.create('iron-meta', {type: 'iconset'}),
+          observer: '_updateIcon'
+        }
+
+      },
+
+      _DEFAULT_ICONSET: 'icons',
+
+      _iconChanged: function(icon) {
+        var parts = (icon || '').split(':');
+        this._iconName = parts.pop();
+        this._iconsetName = parts.pop() || this._DEFAULT_ICONSET;
+        this._updateIcon();
+      },
+
+      _srcChanged: function(src) {
+        this._updateIcon();
+      },
+
+      _usesIconset: function() {
+        return this.icon || !this.src;
+      },
+
+      /** @suppress {visibility} */
+      _updateIcon: function() {
+        if (this._usesIconset()) {
+          if (this._img && this._img.parentNode) {
+            Polymer.dom(this.root).removeChild(this._img);
+          }
+          if (this._iconName === "") {
+            if (this._iconset) {
+              this._iconset.removeIcon(this);
+            }
+          } else if (this._iconsetName && this._meta) {
+            this._iconset = /** @type {?Polymer.Iconset} */ (
+              this._meta.byKey(this._iconsetName));
+            if (this._iconset) {
+              this._iconset.applyIcon(this, this._iconName, this.theme);
+              this.unlisten(window, 'iron-iconset-added', '_updateIcon');
+            } else {
+              this.listen(window, 'iron-iconset-added', '_updateIcon');
+            }
+          }
+        } else {
+          if (this._iconset) {
+            this._iconset.removeIcon(this);
+          }
+          if (!this._img) {
+            this._img = document.createElement('img');
+            this._img.style.width = '100%';
+            this._img.style.height = '100%';
+            this._img.draggable = false;
+          }
+          this._img.src = this.src;
+          Polymer.dom(this.root).appendChild(this._img);
+        }
+      }
+
+    });
+
+  </script>
+
+</dom-module>
+<dom-module id="paper-ripple" assetpath="../../../paper-ripple/">
+
+  <!--
+  Fired when the animation finishes. This is useful if you want to wait until the ripple
+  animation finishes to perform some action.
+
+  @event transitionend
+  @param {Object} detail
+  @param {Object} detail.node The animated node
+  -->
+
+  <template>
+    <style>
+      :host {
+        display: block;
+        position: absolute;
+        border-radius: inherit;
+        overflow: hidden;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+
+        /* See PolymerElements/paper-behaviors/issues/34. On non-Chrome browsers,
+         * creating a node (with a position:absolute) in the middle of an event
+         * handler "interrupts" that event handler (which happens when the
+         * ripple is created on demand) */
+        pointer-events: none;
+      }
+
+      :host([animating]) {
+        /* This resolves a rendering issue in Chrome (as of 40) where the
+           ripple is not properly clipped by its parent (which may have
+           rounded corners). See: http://jsbin.com/temexa/4
+
+           Note: We only apply this style conditionally. Otherwise, the browser
+           will create a new compositing layer for every ripple element on the
+           page, and that would be bad. */
+        -webkit-transform: translate(0, 0);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #background,
+      #waves,
+      .wave-container,
+      .wave {
+        pointer-events: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      #background,
+      .wave {
+        opacity: 0;
+      }
+
+      #waves,
+      .wave {
+        overflow: hidden;
+      }
+
+      .wave-container,
+      .wave {
+        border-radius: 50%;
+      }
+
+      :host(.circle) #background,
+      :host(.circle) #waves {
+        border-radius: 50%;
+      }
+
+      :host(.circle) .wave-container {
+        overflow: hidden;
+      }
+    </style>
+
+    <div id="background"></div>
+    <div id="waves"></div>
+  </template>
+</dom-module>
+<script>
+  (function() {
+    var Utility = {
+      distance: function(x1, y1, x2, y2) {
+        var xDelta = (x1 - x2);
+        var yDelta = (y1 - y2);
+
+        return Math.sqrt(xDelta * xDelta + yDelta * yDelta);
+      },
+
+      now: window.performance && window.performance.now ?
+          window.performance.now.bind(window.performance) : Date.now
+    };
+
+    /**
+     * @param {HTMLElement} element
+     * @constructor
+     */
+    function ElementMetrics(element) {
+      this.element = element;
+      this.width = this.boundingRect.width;
+      this.height = this.boundingRect.height;
+
+      this.size = Math.max(this.width, this.height);
+    }
+
+    ElementMetrics.prototype = {
+      get boundingRect () {
+        return this.element.getBoundingClientRect();
+      },
+
+      furthestCornerDistanceFrom: function(x, y) {
+        var topLeft = Utility.distance(x, y, 0, 0);
+        var topRight = Utility.distance(x, y, this.width, 0);
+        var bottomLeft = Utility.distance(x, y, 0, this.height);
+        var bottomRight = Utility.distance(x, y, this.width, this.height);
+
+        return Math.max(topLeft, topRight, bottomLeft, bottomRight);
+      }
+    };
+
+    /**
+     * @param {HTMLElement} element
+     * @constructor
+     */
+    function Ripple(element) {
+      this.element = element;
+      this.color = window.getComputedStyle(element).color;
+
+      this.wave = document.createElement('div');
+      this.waveContainer = document.createElement('div');
+      this.wave.style.backgroundColor = this.color;
+      this.wave.classList.add('wave');
+      this.waveContainer.classList.add('wave-container');
+      Polymer.dom(this.waveContainer).appendChild(this.wave);
+
+      this.resetInteractionState();
+    }
+
+    Ripple.MAX_RADIUS = 300;
+
+    Ripple.prototype = {
+      get recenters() {
+        return this.element.recenters;
+      },
+
+      get center() {
+        return this.element.center;
+      },
+
+      get mouseDownElapsed() {
+        var elapsed;
+
+        if (!this.mouseDownStart) {
+          return 0;
+        }
+
+        elapsed = Utility.now() - this.mouseDownStart;
+
+        if (this.mouseUpStart) {
+          elapsed -= this.mouseUpElapsed;
+        }
+
+        return elapsed;
+      },
+
+      get mouseUpElapsed() {
+        return this.mouseUpStart ?
+          Utility.now () - this.mouseUpStart : 0;
+      },
+
+      get mouseDownElapsedSeconds() {
+        return this.mouseDownElapsed / 1000;
+      },
+
+      get mouseUpElapsedSeconds() {
+        return this.mouseUpElapsed / 1000;
+      },
+
+      get mouseInteractionSeconds() {
+        return this.mouseDownElapsedSeconds + this.mouseUpElapsedSeconds;
+      },
+
+      get initialOpacity() {
+        return this.element.initialOpacity;
+      },
+
+      get opacityDecayVelocity() {
+        return this.element.opacityDecayVelocity;
+      },
+
+      get radius() {
+        var width2 = this.containerMetrics.width * this.containerMetrics.width;
+        var height2 = this.containerMetrics.height * this.containerMetrics.height;
+        var waveRadius = Math.min(
+          Math.sqrt(width2 + height2),
+          Ripple.MAX_RADIUS
+        ) * 1.1 + 5;
+
+        var duration = 1.1 - 0.2 * (waveRadius / Ripple.MAX_RADIUS);
+        var timeNow = this.mouseInteractionSeconds / duration;
+        var size = waveRadius * (1 - Math.pow(80, -timeNow));
+
+        return Math.abs(size);
+      },
+
+      get opacity() {
+        if (!this.mouseUpStart) {
+          return this.initialOpacity;
+        }
+
+        return Math.max(
+          0,
+          this.initialOpacity - this.mouseUpElapsedSeconds * this.opacityDecayVelocity
+        );
+      },
+
+      get outerOpacity() {
+        // Linear increase in background opacity, capped at the opacity
+        // of the wavefront (waveOpacity).
+        var outerOpacity = this.mouseUpElapsedSeconds * 0.3;
+        var waveOpacity = this.opacity;
+
+        return Math.max(
+          0,
+          Math.min(outerOpacity, waveOpacity)
+        );
+      },
+
+      get isOpacityFullyDecayed() {
+        return this.opacity < 0.01 &&
+          this.radius >= Math.min(this.maxRadius, Ripple.MAX_RADIUS);
+      },
+
+      get isRestingAtMaxRadius() {
+        return this.opacity >= this.initialOpacity &&
+          this.radius >= Math.min(this.maxRadius, Ripple.MAX_RADIUS);
+      },
+
+      get isAnimationComplete() {
+        return this.mouseUpStart ?
+          this.isOpacityFullyDecayed : this.isRestingAtMaxRadius;
+      },
+
+      get translationFraction() {
+        return Math.min(
+          1,
+          this.radius / this.containerMetrics.size * 2 / Math.sqrt(2)
+        );
+      },
+
+      get xNow() {
+        if (this.xEnd) {
+          return this.xStart + this.translationFraction * (this.xEnd - this.xStart);
+        }
+
+        return this.xStart;
+      },
+
+      get yNow() {
+        if (this.yEnd) {
+          return this.yStart + this.translationFraction * (this.yEnd - this.yStart);
+        }
+
+        return this.yStart;
+      },
+
+      get isMouseDown() {
+        return this.mouseDownStart && !this.mouseUpStart;
+      },
+
+      resetInteractionState: function() {
+        this.maxRadius = 0;
+        this.mouseDownStart = 0;
+        this.mouseUpStart = 0;
+
+        this.xStart = 0;
+        this.yStart = 0;
+        this.xEnd = 0;
+        this.yEnd = 0;
+        this.slideDistance = 0;
+
+        this.containerMetrics = new ElementMetrics(this.element);
+      },
+
+      draw: function() {
+        var scale;
+        var translateString;
+        var dx;
+        var dy;
+
+        this.wave.style.opacity = this.opacity;
+
+        scale = this.radius / (this.containerMetrics.size / 2);
+        dx = this.xNow - (this.containerMetrics.width / 2);
+        dy = this.yNow - (this.containerMetrics.height / 2);
+
+
+        // 2d transform for safari because of border-radius and overflow:hidden clipping bug.
+        // https://bugs.webkit.org/show_bug.cgi?id=98538
+        this.waveContainer.style.webkitTransform = 'translate(' + dx + 'px, ' + dy + 'px)';
+        this.waveContainer.style.transform = 'translate3d(' + dx + 'px, ' + dy + 'px, 0)';
+        this.wave.style.webkitTransform = 'scale(' + scale + ',' + scale + ')';
+        this.wave.style.transform = 'scale3d(' + scale + ',' + scale + ',1)';
+      },
+
+      /** @param {Event=} event */
+      downAction: function(event) {
+        var xCenter = this.containerMetrics.width / 2;
+        var yCenter = this.containerMetrics.height / 2;
+
+        this.resetInteractionState();
+        this.mouseDownStart = Utility.now();
+
+        if (this.center) {
+          this.xStart = xCenter;
+          this.yStart = yCenter;
+          this.slideDistance = Utility.distance(
+            this.xStart, this.yStart, this.xEnd, this.yEnd
+          );
+        } else {
+          this.xStart = event ?
+              event.detail.x - this.containerMetrics.boundingRect.left :
+              this.containerMetrics.width / 2;
+          this.yStart = event ?
+              event.detail.y - this.containerMetrics.boundingRect.top :
+              this.containerMetrics.height / 2;
+        }
+
+        if (this.recenters) {
+          this.xEnd = xCenter;
+          this.yEnd = yCenter;
+          this.slideDistance = Utility.distance(
+            this.xStart, this.yStart, this.xEnd, this.yEnd
+          );
+        }
+
+        this.maxRadius = this.containerMetrics.furthestCornerDistanceFrom(
+          this.xStart,
+          this.yStart
+        );
+
+        this.waveContainer.style.top =
+          (this.containerMetrics.height - this.containerMetrics.size) / 2 + 'px';
+        this.waveContainer.style.left =
+          (this.containerMetrics.width - this.containerMetrics.size) / 2 + 'px';
+
+        this.waveContainer.style.width = this.containerMetrics.size + 'px';
+        this.waveContainer.style.height = this.containerMetrics.size + 'px';
+      },
+
+      /** @param {Event=} event */
+      upAction: function(event) {
+        if (!this.isMouseDown) {
+          return;
+        }
+
+        this.mouseUpStart = Utility.now();
+      },
+
+      remove: function() {
+        Polymer.dom(this.waveContainer.parentNode).removeChild(
+          this.waveContainer
+        );
+      }
+    };
+
+    Polymer({
+      is: 'paper-ripple',
+
+      behaviors: [
+        Polymer.IronA11yKeysBehavior
+      ],
+
+      properties: {
+        /**
+         * The initial opacity set on the wave.
+         *
+         * @attribute initialOpacity
+         * @type number
+         * @default 0.25
+         */
+        initialOpacity: {
+          type: Number,
+          value: 0.25
+        },
+
+        /**
+         * How fast (opacity per second) the wave fades out.
+         *
+         * @attribute opacityDecayVelocity
+         * @type number
+         * @default 0.8
+         */
+        opacityDecayVelocity: {
+          type: Number,
+          value: 0.8
+        },
+
+        /**
+         * If true, ripples will exhibit a gravitational pull towards
+         * the center of their container as they fade away.
+         *
+         * @attribute recenters
+         * @type boolean
+         * @default false
+         */
+        recenters: {
+          type: Boolean,
+          value: false
+        },
+
+        /**
+         * If true, ripples will center inside its container
+         *
+         * @attribute recenters
+         * @type boolean
+         * @default false
+         */
+        center: {
+          type: Boolean,
+          value: false
+        },
+
+        /**
+         * A list of the visual ripples.
+         *
+         * @attribute ripples
+         * @type Array
+         * @default []
+         */
+        ripples: {
+          type: Array,
+          value: function() {
+            return [];
+          }
+        },
+
+        /**
+         * True when there are visible ripples animating within the
+         * element.
+         */
+        animating: {
+          type: Boolean,
+          readOnly: true,
+          reflectToAttribute: true,
+          value: false
+        },
+
+        /**
+         * If true, the ripple will remain in the "down" state until `holdDown`
+         * is set to false again.
+         */
+        holdDown: {
+          type: Boolean,
+          value: false,
+          observer: '_holdDownChanged'
+        },
+
+        /**
+         * If true, the ripple will not generate a ripple effect
+         * via pointer interaction.
+         * Calling ripple's imperative api like `simulatedRipple` will
+         * still generate the ripple effect.
+         */
+        noink: {
+          type: Boolean,
+          value: false
+        },
+
+        _animating: {
+          type: Boolean
+        },
+
+        _boundAnimate: {
+          type: Function,
+          value: function() {
+            return this.animate.bind(this);
+          }
+        }
+      },
+
+      get target () {
+        var ownerRoot = Polymer.dom(this).getOwnerRoot();
+        var target;
+
+        if (this.parentNode.nodeType == 11) { // DOCUMENT_FRAGMENT_NODE
+          target = ownerRoot.host;
+        } else {
+          target = this.parentNode;
+        }
+
+        return target;
+      },
+
+      keyBindings: {
+        'enter:keydown': '_onEnterKeydown',
+        'space:keydown': '_onSpaceKeydown',
+        'space:keyup': '_onSpaceKeyup'
+      },
+
+      attached: function() {
+        // Set up a11yKeysBehavior to listen to key events on the target,
+        // so that space and enter activate the ripple even if the target doesn't
+        // handle key events. The key handlers deal with `noink` themselves.
+        this.keyEventTarget = this.target;
+        this.listen(this.target, 'up', 'uiUpAction');
+        this.listen(this.target, 'down', 'uiDownAction');
+      },
+
+      detached: function() {
+        this.unlisten(this.target, 'up', 'uiUpAction');
+        this.unlisten(this.target, 'down', 'uiDownAction');
+      },
+
+      get shouldKeepAnimating () {
+        for (var index = 0; index < this.ripples.length; ++index) {
+          if (!this.ripples[index].isAnimationComplete) {
+            return true;
+          }
+        }
+
+        return false;
+      },
+
+      simulatedRipple: function() {
+        this.downAction(null);
+
+        // Please see polymer/polymer#1305
+        this.async(function() {
+          this.upAction();
+        }, 1);
+      },
+
+      /**
+       * Provokes a ripple down effect via a UI event,
+       * respecting the `noink` property.
+       * @param {Event=} event
+       */
+      uiDownAction: function(event) {
+        if (!this.noink) {
+          this.downAction(event);
+        }
+      },
+
+      /**
+       * Provokes a ripple down effect via a UI event,
+       * *not* respecting the `noink` property.
+       * @param {Event=} event
+       */
+      downAction: function(event) {
+        if (this.holdDown && this.ripples.length > 0) {
+          return;
+        }
+
+        var ripple = this.addRipple();
+
+        ripple.downAction(event);
+
+        if (!this._animating) {
+          this.animate();
+        }
+      },
+
+      /**
+       * Provokes a ripple up effect via a UI event,
+       * respecting the `noink` property.
+       * @param {Event=} event
+       */
+      uiUpAction: function(event) {
+        if (!this.noink) {
+          this.upAction(event);
+        }
+      },
+
+      /**
+       * Provokes a ripple up effect via a UI event,
+       * *not* respecting the `noink` property.
+       * @param {Event=} event
+       */
+      upAction: function(event) {
+        if (this.holdDown) {
+          return;
+        }
+
+        this.ripples.forEach(function(ripple) {
+          ripple.upAction(event);
+        });
+
+        this.animate();
+      },
+
+      onAnimationComplete: function() {
+        this._animating = false;
+        this.$.background.style.backgroundColor = null;
+        this.fire('transitionend');
+      },
+
+      addRipple: function() {
+        var ripple = new Ripple(this);
+
+        Polymer.dom(this.$.waves).appendChild(ripple.waveContainer);
+        this.$.background.style.backgroundColor = ripple.color;
+        this.ripples.push(ripple);
+
+        this._setAnimating(true);
+
+        return ripple;
+      },
+
+      removeRipple: function(ripple) {
+        var rippleIndex = this.ripples.indexOf(ripple);
+
+        if (rippleIndex < 0) {
+          return;
+        }
+
+        this.ripples.splice(rippleIndex, 1);
+
+        ripple.remove();
+
+        if (!this.ripples.length) {
+          this._setAnimating(false);
+        }
+      },
+
+      animate: function() {
+        var index;
+        var ripple;
+
+        this._animating = true;
+
+        for (index = 0; index < this.ripples.length; ++index) {
+          ripple = this.ripples[index];
+
+          ripple.draw();
+
+          this.$.background.style.opacity = ripple.outerOpacity;
+
+          if (ripple.isOpacityFullyDecayed && !ripple.isRestingAtMaxRadius) {
+            this.removeRipple(ripple);
+          }
+        }
+
+        if (!this.shouldKeepAnimating && this.ripples.length === 0) {
+          this.onAnimationComplete();
+        } else {
+          window.requestAnimationFrame(this._boundAnimate);
+        }
+      },
+
+      _onEnterKeydown: function() {
+        this.uiDownAction();
+        this.async(this.uiUpAction, 1);
+      },
+
+      _onSpaceKeydown: function() {
+        this.uiDownAction();
+      },
+
+      _onSpaceKeyup: function() {
+        this.uiUpAction();
+      },
+
+      // note: holdDown does not respect noink since it can be a focus based
+      // effect.
+      _holdDownChanged: function(newVal, oldVal) {
+        if (oldVal === undefined) {
+          return;
+        }
+        if (newVal) {
+          this.downAction();
+        } else {
+          this.upAction();
+        }
+      }
+    });
+  })();
+</script>
+<dom-module id="paper-icon-button" assetpath="../../../paper-icon-button/">
+  <template strip-whitespace="">
+    <style>
+      :host {
+        display: inline-block;
+        position: relative;
+        padding: 8px;
+        outline: none;
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        cursor: pointer;
+        z-index: 0;
+        line-height: 1;
+
+        width: 40px;
+        height: 40px;
+
+        /* Because of polymer/2558, this style has lower specificity than * */
+        box-sizing: border-box !important;
+
+        @apply(--paper-icon-button);
+      }
+
+      :host #ink {
+        color: var(--paper-icon-button-ink-color, --primary-text-color);
+        opacity: 0.6;
+      }
+
+      :host([disabled]) {
+        color: var(--paper-icon-button-disabled-text, --disabled-text-color);
+        pointer-events: none;
+        cursor: auto;
+
+        @apply(--paper-icon-button-disabled);
+      }
+
+      :host(:hover) {
+        @apply(--paper-icon-button-hover);
+      }
+
+      iron-icon {
+        --iron-icon-width: 100%;
+        --iron-icon-height: 100%;
+      }
+    </style>
+
+    <iron-icon id="icon" src="[[src]]" icon="[[icon]]" alt$="[[alt]]"></iron-icon>
+  </template>
+
+  <script>
+    Polymer({
+      is: 'paper-icon-button',
+
+      hostAttributes: {
+        role: 'button',
+        tabindex: '0'
+      },
+
+      behaviors: [
+        Polymer.PaperInkyFocusBehavior
+      ],
+
+      properties: {
+        /**
+         * The URL of an image for the icon. If the src property is specified,
+         * the icon property should not be.
+         */
+        src: {
+          type: String
+        },
+
+        /**
+         * Specifies the icon name or index in the set of icons available in
+         * the icon's icon set. If the icon property is specified,
+         * the src property should not be.
+         */
+        icon: {
+          type: String
+        },
+
+        /**
+         * Specifies the alternate text for the button, for accessibility.
+         */
+        alt: {
+          type: String,
+          observer: "_altChanged"
+        }
+      },
+
+      _altChanged: function(newValue, oldValue) {
+        var label = this.getAttribute('aria-label');
+
+        // Don't stomp over a user-set aria-label.
+        if (!label || oldValue == label) {
+          this.setAttribute('aria-label', newValue);
+        }
+      }
+    });
+  </script>
+</dom-module>
+<dom-module id="paper-checkbox" assetpath="../../../paper-checkbox/">
+  <template strip-whitespace="">
+    <style>
+      :host {
+        display: inline-block;
+        white-space: nowrap;
+        cursor: pointer;
+        --calculated-paper-checkbox-size: var(--paper-checkbox-size, 18px);
+        @apply(--paper-font-common-base);
+        line-height: 0;
+      }
+
+      :host(:focus) {
+        outline: none;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      #checkboxContainer {
+        display: inline-block;
+        position: relative;
+        width: var(--calculated-paper-checkbox-size);
+        height: var(--calculated-paper-checkbox-size);
+        min-width: var(--calculated-paper-checkbox-size);
+        vertical-align: middle;
+        background-color: var(--paper-checkbox-unchecked-background-color, transparent);
+      }
+
+      #ink {
+        position: absolute;
+
+        /* Center the ripple in the checkbox by negative offsetting it by
+         * (inkWidth - rippleWidth) / 2 */
+        top: calc(0px - (2.66 * var(--calculated-paper-checkbox-size) - var(--calculated-paper-checkbox-size)) / 2);
+        left: calc(0px - (2.66 * var(--calculated-paper-checkbox-size) - var(--calculated-paper-checkbox-size)) / 2);
+        width: calc(2.66 * var(--calculated-paper-checkbox-size));
+        height: calc(2.66 * var(--calculated-paper-checkbox-size));
+        color: var(--paper-checkbox-unchecked-ink-color, --primary-text-color);
+        opacity: 0.6;
+        pointer-events: none;
+      }
+
+      :host-context([dir="rtl"]) #ink {
+        right: calc(0px - (2.66 * var(--calculated-paper-checkbox-size) - var(--calculated-paper-checkbox-size)) / 2);
+        left: auto;
+      }
+
+      #ink[checked] {
+        color: var(--paper-checkbox-checked-ink-color, --primary-color);
+      }
+
+      #checkbox {
+        position: relative;
+        box-sizing: border-box;
+        height: 100%;
+        border: solid 2px;
+        border-color: var(--paper-checkbox-unchecked-color, --primary-text-color);
+        border-radius: 2px;
+        pointer-events: none;
+        -webkit-transition: background-color 140ms, border-color 140ms;
+        transition: background-color 140ms, border-color 140ms;
+      }
+
+      /* checkbox checked animations */
+      #checkbox.checked #checkmark {
+        -webkit-animation: checkmark-expand 140ms ease-out forwards;
+        animation: checkmark-expand 140ms ease-out forwards;
+      }
+
+      @-webkit-keyframes checkmark-expand {
+        0% {
+          -webkit-transform: scale(0, 0) rotate(45deg);
+        }
+        100% {
+          -webkit-transform: scale(1, 1) rotate(45deg);
+        }
+      }
+
+      @keyframes checkmark-expand {
+        0% {
+          transform: scale(0, 0) rotate(45deg);
+        }
+        100% {
+          transform: scale(1, 1) rotate(45deg);
+        }
+      }
+
+      #checkbox.checked {
+        background-color: var(--paper-checkbox-checked-color, --primary-color);
+        border-color: var(--paper-checkbox-checked-color, --primary-color);
+      }
+
+      #checkmark {
+        position: absolute;
+        width: 36%;
+        height: 70%;
+        border-style: solid;
+        border-top: none;
+        border-left: none;
+        border-right-width: calc(2/15 * var(--calculated-paper-checkbox-size));
+        border-bottom-width: calc(2/15 * var(--calculated-paper-checkbox-size));
+        border-color: var(--paper-checkbox-checkmark-color, white);
+        -webkit-transform-origin: 97% 86%;
+        transform-origin: 97% 86%;
+        box-sizing: content-box; /* protect against page-level box-sizing */
+      }
+
+      :host-context([dir="rtl"]) #checkmark {
+        -webkit-transform-origin: 50% 14%;
+        transform-origin: 50% 14%;
+      }
+
+      /* label */
+      #checkboxLabel {
+        position: relative;
+        display: inline-block;
+        vertical-align: middle;
+        padding-left: var(--paper-checkbox-label-spacing, 8px);
+        white-space: normal;
+        line-height: normal;
+        color: var(--paper-checkbox-label-color, --primary-text-color);
+      }
+
+      :host-context([dir="rtl"]) #checkboxLabel {
+        padding-right: var(--paper-checkbox-label-spacing, 8px);
+        padding-left: 0;
+      }
+
+      #checkboxLabel[hidden] {
+        display: none;
+      }
+
+      /* disabled state */
+
+      :host([disabled]) #checkbox {
+        opacity: 0.5;
+        border-color: var(--paper-checkbox-unchecked-color, --primary-text-color);
+      }
+
+      :host([disabled][checked]) #checkbox {
+        background-color: var(--paper-checkbox-unchecked-color, --primary-text-color);
+        opacity: 0.5;
+      }
+
+      :host([disabled]) #checkboxLabel  {
+        opacity: 0.65;
+      }
+
+      /* invalid state */
+      #checkbox.invalid:not(.checked) {
+        border-color: var(--paper-checkbox-error-color, --error-color);
+      }
+    </style>
+
+    <div id="checkboxContainer">
+      <div id="checkbox" class$="[[_computeCheckboxClass(checked, invalid)]]">
+        <div id="checkmark" class$="[[_computeCheckmarkClass(checked)]]"></div>
+      </div>
+    </div>
+
+    <div id="checkboxLabel"><content></content></div>
+  </template>
+
+  <script>
+    Polymer({
+      is: 'paper-checkbox',
+
+      behaviors: [
+        Polymer.PaperCheckedElementBehavior
+      ],
+
+      hostAttributes: {
+        role: 'checkbox',
+        'aria-checked': false,
+        tabindex: 0
+      },
+
+      properties: {
+        /**
+         * Fired when the checked state changes due to user interaction.
+         *
+         * @event change
+         */
+
+        /**
+         * Fired when the checked state changes.
+         *
+         * @event iron-change
+         */
+        ariaActiveAttribute: {
+          type: String,
+          value: 'aria-checked'
+        }
+      },
+
+      _computeCheckboxClass: function(checked, invalid) {
+        var className = '';
+        if (checked) {
+          className += 'checked ';
+        }
+        if (invalid) {
+          className += 'invalid';
+        }
+        return className;
+      },
+
+      _computeCheckmarkClass: function(checked) {
+        return checked ? '' : 'hidden';
+      },
+
+      // create ripple inside the checkboxContainer
+      _createRipple: function() {
+        this._rippleContainer = this.$.checkboxContainer;
+        return Polymer.PaperInkyFocusBehaviorImpl._createRipple.call(this);
+      }
+
+    });
+  </script>
+</dom-module>
+<dom-module id="app-drawer" assetpath="../../app-drawer/">
+  <template>
+    <style>
+      :host {
+        position: fixed;
+        top: -120px;
+        right: 0;
+        bottom: -120px;
+        left: 0;
+
+        visibility: hidden;
+
+        transition: visibility 0.2s ease;
+      }
+
+      :host([opened]) {
+        visibility: visible;
+      }
+
+      :host([persistent]) {
+        width: var(--app-drawer-width, 256px);
+      }
+
+      :host([persistent][position=left]) {
+        right: auto;
+      }
+
+      :host([persistent][position=right]) {
+        left: auto;
+      }
+
+      #contentContainer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+
+        width: var(--app-drawer-width, 256px);
+        padding: 120px 0;
+
+        transition: 0.2s ease;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+
+        background-color: #FFF;
+
+        @apply(--app-drawer-content-container);
+      }
+
+      :host([position=right]) > #contentContainer {
+        right: 0;
+        left: auto;
+
+        -webkit-transform: translate3d(100%, 0, 0);
+        transform: translate3d(100%, 0, 0);
+      }
+
+      :host([swipe-open]) > #contentContainer::after {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 100%;
+
+        visibility: visible;
+
+        width: 15px;
+
+        content: '';
+      }
+
+      :host([swipe-open][position=right]) > #contentContainer::after {
+        right: 100%;
+        left: auto;
+      }
+
+      :host([opened]) > #contentContainer {
+        -webkit-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #scrim {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+
+        transition: opacity 0.2s ease;
+        -webkit-transform: translateZ(0);
+        transform:  translateZ(0);
+
+        opacity: 0;
+        background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
+      }
+
+      :host([opened]) > #scrim {
+        opacity: 1;
+      }
+
+      :host([opened][persistent]) > #scrim {
+        visibility: hidden;
+        /**
+         * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+         * scrim from showing when toggling between closed and opened/persistent.
+         */
+
+        opacity: 0;
+      }
+    </style>
+
+    <div id="scrim" on-tap="close"></div>
+
+    <div id="contentContainer">
+      <content></content>
+    </div>
+  </template>
+
+  <script>
+
+    Polymer({
+      is: 'app-drawer',
+
+      properties: {
+        /**
+         * The opened state of the drawer.
+         */
+        opened: {
+          type: Boolean,
+          value: false,
+          notify: true,
+          reflectToAttribute: true
+        },
+
+        /**
+         * The drawer does not have a scrim and cannot be swiped close.
+         */
+        persistent: {
+          type: Boolean,
+          value: false,
+          reflectToAttribute: true
+        },
+
+        /**
+         * The alignment of the drawer on the screen ('start', 'end', 'left', or 'right').
+         * 'start' computes to left and 'end' to right in LTR layout and vice versa in RTL
+         * layout.
+         */
+        align: {
+          type: String,
+          value: 'start',
+        },
+
+        /**
+         * The computed, read-only position of the drawer on the screen ('left' or 'right').
+         */
+        position: {
+          type: String,
+          readOnly: true,
+          value: 'left',
+          reflectToAttribute: true
+        },
+
+        /**
+         * Create an area at the edge of the screen to swipe open the drawer.
+         */
+        swipeOpen: {
+          type: Boolean,
+          value: false,
+          reflectToAttribute: true
+        }
+      },
+
+      listeners: {
+        track: '_track',
+        transitionend: '_transitionend'
+      },
+
+      observers: [
+        'resetLayout(position)',
+        '_resetPosition(align, isAttached)'
+      ],
+
+      _translateOffset: 0,
+
+      _trackDetails: null,
+
+      _drawerState: 0,
+
+      _boundKeydownHandler: null,
+
+      ready: function() {
+        // Set the scroll direction so you can vertically scroll inside the drawer.
+        this.setScrollDirection('y');
+
+        // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
+        // may need to set the initial opened state which should not be transitioned).
+        this._setTransitionDuration('0s');
+
+        this._boundKeydownHandler = this._keydownHandler.bind(this);
+      },
+
+      attached: function() {
+        // Only transition the drawer shortly after it is attached (e.g. app-drawer-layout
+        // may need to set the initial opened state which should not be transitioned).
+        requestAnimationFrame(function() {
+          this._setTransitionDuration('');
+          this._resetDrawerState();
+        }.bind(this));
+      },
+
+      detached: function() {
+        document.removeEventListener('keydown', this._boundKeydownHandler);
+      },
+
+      /**
+       * Opens the drawer.
+       */
+      open: function() {
+        this.opened = true;
+      },
+
+      /**
+       * Closes the drawer.
+       */
+      close: function() {
+        this.opened = false;
+      },
+
+      /**
+       * Toggles the drawer open and close.
+       */
+      toggle: function() {
+        this.opened = !this.opened;
+      },
+
+      /**
+       * Gets the width of the drawer.
+       *
+       * @return {number} The width of the drawer in pixels.
+       */
+      getWidth: function() {
+        return this.$.contentContainer.offsetWidth;
+      },
+
+      resetLayout: function() {
+        this.debounce('_resetLayout', function() {
+          this.fire('app-drawer-reset-layout');
+        }, 1);
+      },
+
+      _isRTL: function() {
+        return window.getComputedStyle(this).direction === 'rtl';
+      },
+
+      _resetPosition: function() {
+        switch (this.align) {
+          case 'start':
+            this._setPosition(this._isRTL() ? 'right' : 'left');
+            return;
+          case 'end':
+            this._setPosition(this._isRTL() ? 'left' : 'right');
+            return;
+        }
+        this._setPosition(this.align);
+      },
+
+      _keydownHandler: function(event) {
+        var ESC_KEYCODE = 27;
+        if (event.keyCode === ESC_KEYCODE) {
+          // Prevent any side effects if app-drawer closes.
+          event.preventDefault();
+          this.close();
+        }
+      },
+
+      _track: function(event) {
+        if (this.persistent) {
+          return;
+        }
+
+        // Disable user selection on desktop.
+        event.preventDefault();
+
+        switch (event.detail.state) {
+          case 'start':
+            this._trackStart(event);
+            break;
+          case 'track':
+            this._trackMove(event);
+            break;
+          case 'end':
+            this._trackEnd(event);
+            break;
+        }
+      },
+
+      _trackStart: function(event) {
+        this._drawerState = this._DRAWER_STATE.TRACKING;
+
+        // Disable transitions since style attributes will reflect user track events.
+        this._setTransitionDuration('0s');
+        this.style.visibility = 'visible';
+
+        var rect = this.$.contentContainer.getBoundingClientRect();
+        if (this.position === 'left') {
+          this._translateOffset = rect.left;
+        } else {
+          this._translateOffset = rect.right - window.innerWidth;
+        }
+
+        this._trackDetails = [];
+      },
+
+      _trackMove: function(event) {
+        this._translateDrawer(event.detail.dx + this._translateOffset);
+
+        // Use Date.now() since event.timeStamp is inconsistent across browsers (e.g. most
+        // browsers use milliseconds but FF 44 uses microseconds).
+        this._trackDetails.push({
+          dx: event.detail.dx,
+          timeStamp: Date.now()
+        });
+      },
+
+      _trackEnd: function(event) {
+        var x = event.detail.dx + this._translateOffset;
+        var drawerWidth = this.getWidth();
+        var isPositionLeft = this.position === 'left';
+        var isInEndState = isPositionLeft ? (x >= 0 || x <= -drawerWidth) :
+          (x <= 0 || x >= drawerWidth);
+
+        if (!isInEndState) {
+          // No longer need the track events after this method returns - allow them to be GC'd.
+          var trackDetails = this._trackDetails;
+          this._trackDetails = null;
+
+          this._flingDrawer(event, trackDetails);
+          if (this._drawerState === this._DRAWER_STATE.FLINGING) {
+            return;
+          }
+        }
+
+        // If the drawer is not flinging, toggle the opened state based on the position of
+        // the drawer.
+        var halfWidth = drawerWidth / 2;
+        if (event.detail.dx < -halfWidth) {
+          this.opened = this.position === 'right';
+        } else if (event.detail.dx > halfWidth) {
+          this.opened = this.position === 'left';
+        }
+
+        // Trigger app-drawer-transitioned now since there will be no transitionend event.
+        if (isInEndState) {
+          this._resetDrawerState();
+        }
+
+        this._setTransitionDuration('');
+        this._resetDrawerTranslate();
+        this.style.visibility = '';
+      },
+
+      _calculateVelocity: function(event, trackDetails) {
+        // Find the oldest track event that is within 100ms using binary search.
+        var now = Date.now();
+        var timeLowerBound = now - 100;
+        var trackDetail;
+        var min = 0;
+        var max = trackDetails.length - 1;
+
+        while (min <= max) {
+          // Floor of average of min and max.
+          var mid = (min + max) >> 1;
+          var d = trackDetails[mid];
+          if (d.timeStamp >= timeLowerBound) {
+            trackDetail = d;
+            max = mid - 1;
+          } else {
+            min = mid + 1;
+          }
+        }
+
+        if (trackDetail) {
+          var dx = event.detail.dx - trackDetail.dx;
+          var dt = (now - trackDetail.timeStamp) || 1;
+          return dx / dt;
+        }
+        return 0;
+      },
+
+      _flingDrawer: function(event, trackDetails) {
+        var velocity = this._calculateVelocity(event, trackDetails);
+
+        // Do not fling if velocity is not above a threshold.
+        if (Math.abs(velocity) < this._MIN_FLING_THRESHOLD) {
+          return;
+        }
+
+        this._drawerState = this._DRAWER_STATE.FLINGING;
+
+        var x = event.detail.dx + this._translateOffset;
+        var drawerWidth = this.getWidth();
+        var isPositionLeft = this.position === 'left';
+        var isVelocityPositive = velocity > 0;
+        var isClosingLeft = !isVelocityPositive && isPositionLeft;
+        var isClosingRight = isVelocityPositive && !isPositionLeft;
+        var dx;
+        if (isClosingLeft) {
+          dx = -(x + drawerWidth);
+        } else if (isClosingRight) {
+          dx = (drawerWidth - x);
+        } else {
+          dx = -x;
+        }
+
+        // Enforce a minimum transition velocity to make the drawer feel snappy.
+        if (isVelocityPositive) {
+          velocity = Math.max(velocity, this._MIN_TRANSITION_VELOCITY);
+          this.opened = this.position === 'left';
+        } else {
+          velocity = Math.min(velocity, -this._MIN_TRANSITION_VELOCITY);
+          this.opened = this.position === 'right';
+        }
+
+        // Calculate the amount of time needed to finish the transition based on the
+        // initial slope of the timing function.
+        this._setTransitionDuration((this._FLING_INITIAL_SLOPE * dx / velocity) + 'ms');
+        this._setTransitionTimingFunction(this._FLING_TIMING_FUNCTION);
+
+        this._resetDrawerTranslate();
+      },
+
+      _transitionend: function(event) {
+        // contentContainer will transition on opened state changed, and scrim will
+        // transition on persistent state changed when opened - these are the
+        // transitions we are interested in.
+        var target = Polymer.dom(event).rootTarget;
+        if (target === this.$.contentContainer || target === this.$.scrim) {
+
+          // If the drawer was flinging, we need to reset the style attributes.
+          if (this._drawerState === this._DRAWER_STATE.FLINGING) {
+            this._setTransitionDuration('');
+            this._setTransitionTimingFunction('');
+            this.style.visibility = '';
+          }
+
+          this._resetDrawerState();
+        }
+      },
+
+      _setTransitionDuration: function(duration) {
+        this.$.contentContainer.style.transitionDuration = duration;
+        this.$.scrim.style.transitionDuration = duration;
+      },
+
+      _setTransitionTimingFunction: function(timingFunction) {
+        this.$.contentContainer.style.transitionTimingFunction = timingFunction;
+        this.$.scrim.style.transitionTimingFunction = timingFunction;
+      },
+
+      _translateDrawer: function(x) {
+        var drawerWidth = this.getWidth();
+
+        if (this.position === 'left') {
+          x = Math.max(-drawerWidth, Math.min(x, 0));
+          this.$.scrim.style.opacity = 1 + x / drawerWidth;
+        } else {
+          x = Math.max(0, Math.min(x, drawerWidth));
+          this.$.scrim.style.opacity = 1 - x / drawerWidth;
+        }
+
+        this.translate3d(x + 'px', '0', '0', this.$.contentContainer);
+      },
+
+      _resetDrawerTranslate: function() {
+        this.$.scrim.style.opacity = '';
+        this.transform('', this.$.contentContainer);
+      },
+
+      _resetDrawerState: function() {
+        var oldState = this._drawerState;
+        if (this.opened) {
+          this._drawerState = this.persistent ?
+            this._DRAWER_STATE.OPENED_PERSISTENT : this._DRAWER_STATE.OPENED;
+        } else {
+          this._drawerState = this._DRAWER_STATE.CLOSED;
+        }
+
+        if (oldState !== this._drawerState) {
+          if (this._drawerState === this._DRAWER_STATE.OPENED) {
+            document.addEventListener('keydown', this._boundKeydownHandler);
+            document.body.style.overflow = 'hidden';
+          } else {
+            document.removeEventListener('keydown', this._boundKeydownHandler);
+            document.body.style.overflow = '';
+          }
+
+          // Don't fire the event on initial load.
+          if (oldState !== this._DRAWER_STATE.INIT) {
+            this.fire('app-drawer-transitioned');
+          }
+        }
+      },
+
+      _MIN_FLING_THRESHOLD: 0.2,
+
+      _MIN_TRANSITION_VELOCITY: 1.2,
+
+      _FLING_TIMING_FUNCTION: 'cubic-bezier(0.667, 1, 0.667, 1)',
+
+      _FLING_INITIAL_SLOPE: 1.5,
+
+      _DRAWER_STATE: {
+        INIT: 0,
+        OPENED: 1,
+        OPENED_PERSISTENT: 2,
+        CLOSED: 3,
+        TRACKING: 4,
+        FLINGING: 5
+      }
+
+      /**
+       * Fired when the layout of app-drawer has changed.
+       *
+       * @event app-drawer-reset-layout
+       */
+
+      /**
+       * Fired when app-drawer has finished transitioning.
+       *
+       * @event app-drawer-transitioned
+       */
+    });
+  </script>
+</dom-module>
+<dom-module id="app-drawer-layout" assetpath="../../app-drawer-layout/">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host([fullbleed]) {
+        @apply(--layout-fit);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        height: 100%;
+
+        transition: var(--app-drawer-layout-content-transition, none);
+      }
+
+      #contentContainer:not(.narrow) > ::content [drawer-toggle] {
+        display: none;
+      }
+    </style>
+
+    <div id="contentContainer" class$="[[_computeClass(narrow)]]">
+      <content select=":not(app-drawer)"></content>
+    </div>
+
+    <content id="drawerContent" select="app-drawer"></content>
+
+    <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]" on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
+  </template>
+
+  <script>
+    Polymer({
+      is: 'app-drawer-layout',
+
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
+
+      properties: {
+        /**
+         * Returns true if the panel is in narrow layout. This is useful if you
+         * need to show/hide elements based on the layout.
+         */
+        narrow: {
+          type: Boolean,
+          readOnly: true,
+          notify: true,
+          reflectToAttribute: true,
+          value: false
+        },
+
+        /**
+         * If true, ignore `responsiveWidth` setting and force the narrow layout.
+         */
+        forceNarrow: {
+          type: Boolean,
+          value: false,
+          observer: '_responsiveChange'
+        },
+
+        /**
+         * If the viewport's width is smaller than this value, the panel will change to narrow layout.
+         * In the mode the drawer will be closed.
+         */
+        responsiveWidth: {
+          type: String,
+          value: '640px'
+        }
+      },
+
+      listeners: {
+        'tap': '_tapHandler',
+        'app-drawer-reset-layout': 'resetLayout'
+      },
+
+      attached: function() {
+        this.resetLayout();
+      },
+
+      /**
+       * Gets the drawer element.
+       *
+       * @property drawer
+       */
+      get drawer() {
+        return Polymer.dom(this.$.drawerContent).getDistributedNodes()[0];
+      },
+
+      _tapHandler: function(e) {
+        var target = Polymer.dom(e).localTarget;
+        if (target && target.hasAttribute('drawer-toggle')) {
+          this.drawer.toggle();
+        }
+      },
+
+      _responsiveChange: function(narrow) {
+        this._setNarrow(narrow);
+        this.resetLayout();
+      },
+
+      resetLayout: function() {
+        this.debounce('_resetLayout', function() {
+          if (!this.isAttached) {
+            return;
+          }
+          this.drawer.opened = !this.narrow;
+          this.drawer.persistent = !this.narrow;
+          if (this.narrow) {
+            this.$.contentContainer.style.marginLeft = '';
+            this.$.contentContainer.style.marginRight = '';
+          } else if (this.drawer.position == 'right') {
+            this.$.contentContainer.style.marginLeft = '';
+            this.$.contentContainer.style.marginRight = this.drawer.getWidth() + 'px';
+          } else {
+            this.$.contentContainer.style.marginLeft = this.drawer.getWidth() + 'px';
+            this.$.contentContainer.style.marginRight = '';
+          }
+          this.notifyResize();
+        });
+      },
+
+      _onQueryMatchesChanged: function(event) {
+        this._responsiveChange(event.detail.value);
+      },
+
+      _computeMediaQuery: function(forceNarrow, responsiveWidth) {
+        return forceNarrow ? '' : '(max-width: ' + responsiveWidth + ')';
+      },
+
+      /**
+       * NOTE(keanulee): IE/Edge does not properly update element styles when using
+       * dynamically inserted style tags that match with :not([attribute]) rules,
+       * so we use a :not(.class) rule instead. Ref
+       * https://connect.microsoft.com/IE/feedbackdetail/view/2217046/element-styles-not-updated-when-using-dynamically-inserted-style-tags-that-match-with-not-attribute-rules
+       */
+      _computeClass: function(narrow) {
+        return narrow ? 'narrow' : '';
+      }
+    });
+  </script>
+</dom-module>
+<dom-module id="app-header-layout" assetpath="../../app-header-layout/">
+  <template>
+    <style>
+      :host {
+        display: block;
+
+        /**
+         * Force app-header-layout to have its own stacking context so that its parent can
+         * control the stacking of it relative to other elements (e.g. app-drawer-layout).
+         * This could be done using `isolation: isolate`, but that's not well supported
+         * across browsers.
+         */
+        position: relative;
+        z-index: 0;
+      }
+
+      :host([has-scrolling-region]) {
+        height: 100%;
+      }
+
+      :host > ::content > app-header {
+        @apply(--layout-fixed-top);
+
+        z-index: 1;
+      }
+
+      :host([has-scrolling-region]) > ::content > app-header {
+        position: absolute;
+      }
+
+      #contentContainer {
+        /* Create a stacking context here so that all children appear below the header. */
+        position: relative;
+        z-index: 0;
+      }
+
+      :host([has-scrolling-region]) > #contentContainer {
+        @apply(--layout-fit);
+
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
+
+    <content id="header" select="app-header"></content>
+
+    <div id="contentContainer">
+      <content></content>
+    </div>
+
+  </template>
+
+  <script>
+    Polymer({
+      is: 'app-header-layout',
+
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
+
+      properties: {
+        /**
+         * If true, the current element will have its own scrolling region.
+         * Otherwise, it will use the document scroll to control the header.
+         */
+        hasScrollingRegion: {
+          type: Boolean,
+          value: false,
+          reflectToAttribute: true
+        }
+      },
+
+      listeners: {
+        'iron-resize': '_resizeHandler',
+        'app-header-reset-layout': 'resetLayout'
+      },
+
+      observers: [
+        'resetLayout(isAttached, hasScrollingRegion)'
+      ],
+
+      get header() {
+        return Polymer.dom(this.$.header).getDistributedNodes()[0];
+      },
+
+      /**
+       * Resets the layout. This method is automatically called when the element is attached
+       * to the DOM.
+       *
+       * @method resetLayout
+       */
+      resetLayout: function() {
+        this._updateScroller();
+        this.debounce('_resetLayout', this._updateContentPosition);
+      },
+
+      _updateContentPosition: function() {
+        var header = this.header;
+        if (!this.isAttached || !header) {
+          return;
+        }
+
+        // Get header height here so that style reads are batched together before style writes
+        // (i.e. getBoundingClientRect() below).
+        var headerHeight = header.offsetHeight;
+
+        // Update the header position.
+        if (!this.hasScrollingRegion) {
+          var rect = this.getBoundingClientRect();
+          var rightOffset = document.documentElement.clientWidth - rect.right;
+          header.style.left = rect.left + 'px';
+          header.style.right = rightOffset + 'px';
+        } else {
+          header.style.left = '';
+          header.style.right = '';
+        }
+
+        // Update the content container position.
+        var containerStyle = this.$.contentContainer.style;
+        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
+          // If the header size does not change and we're using a scrolling region, exclude
+          // the header area from the scrolling region so that the header doesn't overlap
+          // the scrollbar.
+          containerStyle.marginTop = headerHeight + 'px';
+          containerStyle.paddingTop = '';
+        } else {
+          containerStyle.paddingTop = headerHeight + 'px';
+          containerStyle.marginTop = '';
+        }
+      },
+
+      _updateScroller: function() {
+        if (!this.isAttached) {
+          return;
+        }
+        var header = this.header;
+        if (header) {
+          header.scrollTarget = this.hasScrollingRegion ?
+              this.$.contentContainer : this.ownerDocument.documentElement;
+        }
+      },
+
+      _resizeHandler: function() {
+        this.resetLayout();
+      }
+    });
+  </script>
+</dom-module>
+<dom-module id="app-header" assetpath="../../app-header/">
+  <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+
+        transition-timing-function: linear;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+      }
+
+      :host::after {
+        position: absolute;
+        right: 0px;
+        bottom: -5px;
+        left: 0px;
+
+        width: 100%;
+        height: 5px;
+
+        content: "";
+        transition: opacity 0.4s;
+        pointer-events: none;
+
+        opacity: 0;
+        box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
+
+        will-change: opacity;
+
+        @apply(--app-header-shadow);
+      }
+
+      :host([shadow])::after {
+        opacity: 1;
+      }
+
+      #contentContainer > ::content [condensed-title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+
+        opacity: 0;
+      }
+
+      #contentContainer > ::content [title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+      }
+
+      #backgroundFrontLayer,
+      #backgroundRearLayer {
+        @apply(--layout-fit);
+
+        height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+      }
+
+      #backgroundFrontLayer {
+        @apply(--app-header-background-front-layer);
+      }
+
+      #backgroundRearLayer {
+        opacity: 0;
+
+        @apply(--app-header-background-rear-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled])::after,
+      :host([disabled]) #backgroundFrontLayer,
+      :host([disabled]) #backgroundRearLayer,
+      :host([disabled]) ::content > app-toolbar:first-of-type,
+      :host([disabled]) ::content > [primary],
+      /* Silent scrolling should not run CSS transitions */
+      :host-context(.app-layout-silent-scroll),
+      :host-context(.app-layout-silent-scroll)::after,
+      :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
+      :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
+      :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
+      :host-context(.app-layout-silent-scroll) ::content > [primary] {
+        transition: none !important;
+      }
+    </style>
+
+    <div id="background">
+      <div id="backgroundRearLayer"></div>
+      <div id="backgroundFrontLayer"></div>
+    </div>
+    <div id="contentContainer">
+      <content id="content"></content>
+    </div>
+  </template>
+
+  <script>
+    Polymer({
+      is: 'app-header',
+
+      behaviors: [
+        Polymer.AppScrollEffectsBehavior,
+        Polymer.IronResizableBehavior
+      ],
+
+      properties: {
+        /**
+         * If true, the header will automatically collapse when scrolling down.
+         * That is, the `primary` element remains visible when the header is fully condensed
+         * whereas the rest of the elements will collapse below `primary` element.
+         *
+         * By default, the `primary` element is the first toolbar in the light DOM:
+         *
+         *```html
+         * <app-header condenses>
+         *   <app-toolbar>This toolbar remains on top</app-toolbar>
+         *   <app-toolbar></app-toolbar>
+         *   <app-toolbar></app-toolbar>
+         * </app-header>
+         * ```
+         *
+         * Additionally, you can specify which toolbar or element remains visible in condensed mode
+         * by adding the `primary` attribute to that element. For example: if we want the last
+         * toolbar to remain visible, we can add the `primary` attribute to it.
+         *
+         *```html
+         * <app-header condenses>
+         *   <app-toolbar></app-toolbar>
+         *   <app-toolbar></app-toolbar>
+         *   <app-toolbar primary>This toolbar remains on top</app-toolbar>
+         * </app-header>
+         * ```
+         *
+         * Note the `primary` element must be a child of `app-header`.
+         */
+        condenses: {
+          type: Boolean,
+          value: false
+        },
+
+        /**
+         * Mantains the header fixed at the top so it never moves away.
+         */
+        fixed: {
+          type: Boolean,
+          value: false
+        },
+
+        /**
+         * Slides back the header when scrolling back up.
+         */
+        reveals: {
+          type: Boolean,
+          value: false
+        },
+
+        /**
+         * Displays a shadow below the header.
+         */
+        shadow: {
+          type: Boolean,
+          reflectToAttribute: true,
+          value: false
+        }
+      },
+
+      observers: [
+        'resetLayout(isAttached, condenses, fixed)'
+      ],
+
+      listeners: {
+        'iron-resize': '_resizeHandler'
+      },
+
+      /**
+       * A cached offsetHeight of the current element.
+       *
+       * @type {number}
+       */
+      _height: 0,
+
+      /**
+       * The distance in pixels the header will be translated to when scrolling.
+       *
+       * @type {number}
+       */
+      _dHeight: 0,
+
+      /**
+       * The offsetTop of `_primaryEl`
+       *
+       * @type {number}
+       */
+      _primaryElTop: 0,
+
+      /**
+       * The element that remains visible when the header condenses.
+       *
+       * @type {HTMLElement}
+       */
+      _primaryEl: null,
+
+      /**
+       * The header's top value used for the `transformY`
+       *
+       * @type {number}
+       */
+      _top: 0,
+
+      /**
+       * The current scroll progress.
+       *
+       * @type {number}
+       */
+      _progress: 0,
+
+      _wasScrollingDown: false,
+      _initScrollTop: 0,
+      _initTimestamp: 0,
+      _lastTimestamp: 0,
+      _lastScrollTop: 0,
+
+      /**
+       * The distance the header is allowed to move away.
+       *
+       * @type {number}
+       */
+      get _maxHeaderTop() {
+        return this.fixed ? this._dHeight : this._height + 5;
+      },
+
+      /**
+       * Returns a reference to the element that remains visible when the header condenses.
+       *
+       * @return {HTMLElement}?
+       */
+      _getPrimaryEl: function() {
+        /** @type {HTMLElement} */
+        var primaryEl;
+        var nodes = Polymer.dom(this.$.content).getDistributedNodes();
+
+        for (var i = 0; i < nodes.length; i++) {
+          if (nodes[i].nodeType === Node.ELEMENT_NODE) {
+            var node = /** @type {HTMLElement} */ (nodes[i]);
+            if (node.hasAttribute('primary')) {
+              primaryEl = node;
+              break;
+            } else if (!primaryEl) {
+              primaryEl = node;
+            }
+          }
+        }
+        return primaryEl;
+      },
+
+      /**
+       * Resets the layout. This method is automatically called when the element is attached to the DOM.
+       *
+       * @method resetLayout
+       */
+      resetLayout: function() {
+        this.fire('app-header-reset-layout');
+
+        this.debounce('_resetLayout', function() {
+          // noop if the header isn't visible
+          if (this.offsetWidth === 0 && this.offsetHeight === 0) {
+            return;
+          }
+
+          var scrollTop = this._clampedScrollTop;
+          var firstSetup = this._height === 0 || scrollTop === 0;
+          var currentDisabled = this.disabled;
+
+          this._height = this.offsetHeight;
+          this._primaryEl = this._getPrimaryEl();
+          this.disabled = true;
+
+          // prepare for measurement
+          if  (!firstSetup) {
+            this._updateScrollState(0, true);
+          }
+
+          if (this._mayMove()) {
+            this._dHeight = this._primaryEl ? this._height - this._primaryEl.offsetHeight : 0;
+          } else {
+            this._dHeight = 0;
+          }
+
+          this._primaryElTop = this._primaryEl ? this._primaryEl.offsetTop : 0;
+          this._setUpEffect();
+
+          if (firstSetup) {
+            this._updateScrollState(scrollTop, true);
+          } else {
+            this._updateScrollState(this._lastScrollTop, true);
+            this._layoutIfDirty();
+          }
+          // restore no transition
+          this.disabled = currentDisabled;
+        });
+      },
+
+      /**
+       * Updates the scroll state.
+       *
+       * @param {number} scrollTop
+       * @param {boolean=} forceUpdate (default: false)
+       */
+      _updateScrollState: function(scrollTop, forceUpdate) {
+        if (this._height === 0) {
+          return;
+        }
+
+        var progress = 0;
+        var top = 0;
+        var lastTop = this._top;
+        var lastScrollTop = this._lastScrollTop;
+        var maxHeaderTop = this._maxHeaderTop;
+        var dScrollTop = scrollTop - this._lastScrollTop;
+        var absDScrollTop = Math.abs(dScrollTop);
+        var isScrollingDown = scrollTop > this._lastScrollTop;
+        var now = Date.now();
+
+        if (this._mayMove()) {
+          top = this._clamp(this.reveals ? lastTop + dScrollTop : scrollTop, 0, maxHeaderTop);
+        }
+
+        if (scrollTop >= this._dHeight) {
+          top = this.condenses ? Math.max(this._dHeight, top) : top;
+          this.style.transitionDuration = '0ms';
+        }
+
+        if (this.reveals && !this.disabled && absDScrollTop < 100) {
+          // set the initial scroll position
+          if (now - this._initTimestamp > 300 || this._wasScrollingDown !== isScrollingDown) {
+            this._initScrollTop = scrollTop;
+            this._initTimestamp = now;
+          }
+
+          if (scrollTop >= maxHeaderTop) {
+            // check if the header is allowed to snap
+            if (Math.abs(this._initScrollTop - scrollTop) > 30 || absDScrollTop > 10) {
+              if (isScrollingDown && scrollTop >= maxHeaderTop) {
+                top = maxHeaderTop;
+              } else if (!isScrollingDown && scrollTop >= this._dHeight) {
+                top = this.condenses ? this._dHeight : 0;
+              }
+
+              var scrollVelocity = dScrollTop / (now - this._lastTimestamp);
+              this.style.transitionDuration = this._clamp((top - lastTop) / scrollVelocity, 0, 300) + 'ms';
+            } else {
+              top = this._top;
+            }
+          }
+        }
+
+        if (this._dHeight === 0) {
+          progress = scrollTop > 0 ? 1 : 0;
+        } else {
+          progress = top / this._dHeight;
+        }
+
+        if (!forceUpdate) {
+          this._lastScrollTop = scrollTop;
+          this._top = top;
+          this._wasScrollingDown = isScrollingDown;
+          this._lastTimestamp = now;
+        }
+
+        if (forceUpdate || progress !== this._progress || lastTop !== top || scrollTop === 0) {
+          this._progress = progress;
+          this._runEffects(progress, top);
+          this._transformHeader(top);
+        }
+      },
+
+      /**
+       * Returns true if the current header is allowed to move as the user scrolls.
+       *
+       * @return {boolean}
+       */
+      _mayMove: function() {
+        return this.condenses || !this.fixed;
+      },
+
+      /**
+       * Returns true if the current header will condense based on the size of the header
+       * and the `consenses` property.
+       *
+       * @return {boolean}
+       */
+      willCondense: function() {
+        return this._dHeight > 0 && this.condenses;
+      },
+
+      /**
+       * Returns true if the current element is on the screen.
+       * That is, visible in the current viewport.
+       *
+       * @method isOnScreen
+       * @return {boolean}
+       */
+      isOnScreen: function() {
+        return this._height !== 0 && this._top < this._height;
+      },
+
+      /**
+       * Returns true if there's content below the current element.
+       *
+       * @method isContentBelow
+       * @return {boolean}
+       */
+      isContentBelow: function() {
+        if (this._top === 0) {
+          return this._clampedScrollTop > 0;
+        }
+
+        return this._clampedScrollTop - this._maxHeaderTop >= 0;
+      },
+
+      /**
+       * Transforms the header.
+       *
+       * @param {number} y
+       */
+      _transformHeader: function(y) {
+        this.translate3d(0, (-y) + 'px', 0);
+
+        if (this._primaryEl && this.condenses && y >= this._primaryElTop) {
+          this.translate3d(0, (Math.min(y, this._dHeight) - this._primaryElTop) + 'px', 0,
+              this._primaryEl);
+        }
+      },
+
+      _resizeHandler: function() {
+        this.resetLayout();
+      },
+
+      _clamp: function(v, min, max) {
+        return Math.min(max, Math.max(min, v));
+      },
+
+      /**
+       * Returns an object containing the progress value of the scroll effects
+       * and the top position of the header.
+       *
+       * @method getScrollState
+       * @return {Object}
+       */
+      getScrollState: function() {
+        return { progress: this._progress, top: this._top };
+      }
+
+      /**
+       * Fires when the layout of `app-header` changed.
+       *
+       * @event app-header-reset-layout
+       */
+    });
+  </script>
+</dom-module>
+<dom-module id="app-toolbar" assetpath="../../app-toolbar/">
   <template>
     <style>
       :host {
@@ -10660,13 +16983,301 @@ Custom property              | Description                  | Default
     });
   </script>
 </dom-module>
+<dom-module id="sample-content" assetpath="../../demo/">
+
+  <script>
+
+    Polymer({
+      is: 'sample-content',
+
+      properties: {
+
+        size: {
+          type: Number,
+          value: 0
+        },
+
+        label: {
+          value: ''
+        },
+
+        padding: {
+          value: '16px'
+        },
+
+        margin: {
+          value: '24px'
+        },
+
+        boxShadow: {
+          value: '0 2px 2px 0 rgba(0, 0, 0, 0.14), 0 1px 5px 0 rgba(0, 0, 0, 0.12), 0 3px 1px -2px rgba(0, 0, 0, 0.2)'
+        }
+
+      },
+
+      observers: [
+        '_render(size, label, padding, margin, boxShadow)'
+      ],
+
+      _lorem_ipsum_strings: [
+        'Lorem ipsum dolor sit amet, per in nusquam nominavi periculis, sit elit oportere ea.',
+        'Ut labores minimum atomorum pro. Laudem tibique ut has.',
+        'Fugit adolescens vis et, ei graeci forensibus sed.',
+        'Convenire definiebas scriptorem eu cum. Sit dolor dicunt consectetuer no.',
+        'Ea duis bonorum nec, falli paulo aliquid ei eum.',
+        'Usu eu novum principes, vel quodsi aliquip ea.',
+        'Has at minim mucius aliquam, est id tempor laoreet.',
+        'Pro saepe pertinax ei, ad pri animal labores suscipiantur.',
+        'Detracto suavitate repudiandae no eum. Id adhuc minim soluta nam.',
+        'Iisque perfecto dissentiet cum et, sit ut quot mandamus, ut vim tibique splendide instructior.',
+        'Id nam odio natum malorum, tibique copiosae expetenda mel ea.',
+        'Cu mei vide viris gloriatur, at populo eripuit sit.',
+        'Modus commodo minimum eum te, vero utinam assueverit per eu.',
+        'No nam ipsum lorem aliquip, accumsan quaerendum ei usu.'
+      ],
+
+      ready: function() {
+        this.style.display = 'block';
+      },
+
+      _randomString: function(size) {
+        var ls = this._lorem_ipsum_strings;
+        var s  = '';
+        do {
+          s += ls[Math.floor(Math.random() * ls.length)];
+          size--;
+        } while (size > 0);
+        return s;
+      },
+
+      _randomLetter: function() {
+        return String.fromCharCode(65 + Math.floor(Math.random() * 26));
+      },
+
+      _render: function(size, label, padding, margin, boxShadow) {
+        var html = '';
+        for (var i = 0; i < size; i++) {
+          html +=
+            '<div style="box-shadow: ' + boxShadow +  '; padding: ' + padding + '; margin: ' + margin + '; border-radius: 5px; background-color: #fff; color: #757575;">' +
+            '<div style="display: inline-block; height: 64px; width: 64px; border-radius: 50%; background: #ddd; line-height: 64px; font-size: 30px; color: #555; text-align: center;">' + this._randomLetter() + '</div>' +
+            '<div style="font-size: 22px; margin: 16px 0; color: #212121;">' + this.label + ' '  + this._randomString() + '</div>' +
+            '<p style="font-size: 16px;">' + this._randomString() + '</p>' +
+            '<p style="font-size: 14px;">' + this._randomString(3) + '</p>' +
+            '</div>';
+          this.innerHTML = html;
+        }
+      }
+
+    });
+
+  </script>
+
+</dom-module>
+<iron-iconset-svg name="app" size="24">
+<svg><defs>
+<g id="menu"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"></path></g>
+</defs></svg>
+</iron-iconset-svg>
+
+<dom-module id="test-app" assetpath="/">
+
+  <template>
+
+    <style>
+
+    app-drawer section {
+      height: 100%;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    app-drawer h2 {
+      margin: 8px 0 0;
+      padding: 18px;
+      font-size: 18px;
+    }
+
+    app-drawer paper-checkbox {
+      display: block;
+      padding: 18px;
+    }
+
+    app-header {
+      color: #fff;
+      background-color: #C62828;
+      --app-header-background-front-layer: {
+        background-image: url("//app-layout-assets.appspot.com/assets/test-drive.jpg");
+        background-position: 50% 10%;
+      };
+    }
+
+    div[title] {
+      font-size: 2em;
+    }
+
+    </style>
+
+    <app-drawer-layout>
+
+      <app-drawer swipe-open="">
+        <section>
+          <h2>app-header Properties</h2>
+          <paper-checkbox checked="{{condenses}}">
+            condenses
+          </paper-checkbox>
+          <paper-checkbox checked="{{fixed}}">
+            fixed
+          </paper-checkbox>
+          <paper-checkbox checked="{{reveals}}">
+            reveals
+          </paper-checkbox>
+          <paper-checkbox checked="{{shadow}}">
+            shadow
+          </paper-checkbox>
+
+          <h2>app-header Effects</h2>
+          <paper-checkbox checked="{{blendBackground}}">
+            blend-background
+          </paper-checkbox>
+          <paper-checkbox checked="{{fadeBackground}}">
+            fade-background
+          </paper-checkbox>
+          <paper-checkbox checked="{{parallaxBackground}}">
+            parallax-background
+          </paper-checkbox>
+          <paper-checkbox checked="{{resizeSnappedTitle}}">
+            resize-snapped-title
+          </paper-checkbox>
+          <paper-checkbox checked="{{resizeTitle}}">
+            resize-title
+          </paper-checkbox>
+          <paper-checkbox checked="{{waterfall}}">
+            waterfall
+          </paper-checkbox>
+        </section>
+      </app-drawer>
+
+      <app-header-layout>
+
+        <app-header condenses="[[condenses]]" fixed="[[fixed]]" reveals="[[reveals]]" shadow="[[shadow]]" effects="[[_computeEffects(blendBackground, fadeBackground, parallaxBackground, resizeSnappedTitle, resizeTitle, waterfall)]]">
+
+          <app-toolbar>
+            <paper-icon-button icon="app:menu" drawer-toggle=""></paper-icon-button>
+            <div condensed-title="">Test Drive app-header</div>
+          </app-toolbar>
+
+          <app-toolbar></app-toolbar>
+
+          <app-toolbar>
+            <div title="" spacer="">Test Drive</div>
+          </app-toolbar>
+
+        </app-header>
+
+        <sample-content size="100"></sample-content>
+
+      </app-header-layout>
+
+    </app-drawer-layout>
+
+  </template>
+
+  <script>
+
+  Polymer({
+
+    is: 'test-app',
+
+    properties: {
+
+      condenses: {
+        type: Boolean,
+        value: true
+      },
+
+      fixed: {
+        type: Boolean,
+        value: true
+      },
+
+      reveals: {
+        type: Boolean,
+        value: false
+      },
+
+      shadow: {
+        type: Boolean,
+        value: false
+      },
+
+      blendBackground: {
+        type: Boolean,
+        value: true
+      },
+
+      fadeBackground: {
+        type: Boolean,
+        value: false
+      },
+
+      parallaxBackground: {
+        type: Boolean,
+        value: true
+      },
+
+      resizeSnappedTitle: {
+        type: Boolean,
+        value: false
+      },
+
+      resizeTitle: {
+        type: Boolean,
+        value: true
+      },
+
+      waterfall: {
+        type: Boolean,
+        value: true
+      }
+
+    },
+
+    observers: [
+      '_removeIf("fixed", reveals)',
+      '_removeIf("reveals", fixed)',
+      '_removeIf("shadow", waterfall)',
+      '_removeIf("blendBackground", fadeBackground)',
+      '_removeIf("fadeBackground", blendBackground)',
+      '_removeIf("resizeSnappedTitle", resizeTitle)',
+      '_removeIf("resizeTitle", resizeSnappedTitle)',
+      '_removeIf("waterfall", shadow)'
+    ],
+
+    _computeEffects: function() {
+      return [
+        this.blendBackground ? 'blend-background ' : '',
+        this.fadeBackground ? 'fade-background ' : '',
+        this.parallaxBackground ? 'parallax-background ' : '',
+        this.resizeSnappedTitle ? 'resize-snapped-title ' : '',
+        this.resizeTitle ? 'resize-title ' : '',
+        this.waterfall ? 'waterfall ' : ''
+      ].join('');
+    },
+
+    _removeIf: function(propName, value) {
+      if (this[propName] && value) {
+        this[propName] = false;
+      }
+    }
+
+  });
+
+  </script>
+
+</dom-module>
 </div>
 
-  <app-toolbar></app-toolbar>
-
-  <div class="content">
-    <div class="card"></div>
-  </div>
+  <test-app></test-app>
 
 
 

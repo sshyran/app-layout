@@ -11462,7 +11462,20 @@ milliseconds.
         url = new URL(href);
       }
 
-      if (url.origin !== window.location.origin) {
+      var origin;
+
+      // IE Polyfill
+      if (window.location.origin) {
+        origin = window.location.origin;
+      } else {
+        origin = window.location.protocol + '//' + window.location.hostname;
+
+        if (window.location.port) {
+          origin += ':' + window.location.port;
+        }
+      }
+
+      if (url.origin !== origin) {
         return null;
       }
       var normalizedHref = url.pathname + url.search + url.hash;
@@ -11560,17 +11573,25 @@ creating bespoke routing solutions from scratch. To simply include routing in
 an app, please refer to [carbon-location](https://github.com/PolymerElements/carbon-route/blob/master/carbon-location.html)
 and [carbon-route](https://github.com/PolymerElements/carbon-route/blob/master/carbon-route.html).
 
-An example of a route element that describes
-`https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`:
+An example of a route object that describes
+`https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`
+and should be passed to other `carbon-route` elements:
 
     {
       prefix: '',
       path: '/elements/carbon-route-converter',
-      queryParams: {
+      __queryParams: {
         foo: 'bar',
         baz: 'qux'
       }
     }
+
+`__queryParams` is private to discourage directly data-binding to it. This is so
+that routing elements like `carbon-route` can intermediate changes to the query
+params and choose whether to propagate them upstream or not. `carbon-route` for
+example will not propagate changes to its `queryParams` property if it is not
+currently active. A public queryParams object will also be produced in which you
+should perform data-binding operations.
 
 Example Usage:
 
@@ -11610,6 +11631,8 @@ turn is consumed by the `carbon-route`.
        *
        * A route object is the kernel of the routing system. It is intended to
        * be fed into consuming elements such as `carbon-route`.
+       *
+       * @type {?Object}
        */
       route: {
         type: Object,
@@ -11620,6 +11643,8 @@ turn is consumed by the `carbon-route`.
       /**
        * A set of key/value pairs that are universally accessible to branches of
        * the route tree.
+       *
+       * @type {?Object}
        */
       queryParams: {
         type: Object,
@@ -11702,7 +11727,7 @@ occur, `carbon-location` produces and updates an object called `route`. This
 `route` object is suitable for passing into a `carbon-route`, and other similar
 elements.
 
-An example of a route object that describes the URL
+An example of the public API of a route object that describes the URL
 `https://elements.polymer-project.org/elements/carbon-route-converter?foo=bar&baz=qux`:
 
     {
@@ -11782,7 +11807,7 @@ In the above example, there are two `carbon-route` elements. The first
 `carbon-route` consumes a `route`. When the `route` is matched, the first
 `carbon-route` also produces `routeData` from its `data`, and `subroute` from
 its `tail`. The second `carbon-route` consumes the `subroute`, and when it
-matches, it produces an object called `subrouteData` from its `tail`.
+matches, it produces an object called `subrouteData` from its `data`.
 
 So, when `route.path` is `'/about'`, the `routeData` object will look like
 this: `{ page: 'about' }`
@@ -11839,6 +11864,9 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         notify: true
       },
 
+      /**
+       * @type {?Object}
+       */
       queryParams: {
         type: Object,
         value: function() {
@@ -11863,9 +11891,14 @@ the `carbon-route` will update `route.path`. This in-turn will update the
       },
 
       _skipMatch: {
+        type: Boolean,
         value: false
       },
+      /**
+       * @type {?string}
+       */
       _matched: {
+        type: String,
         value: ''
       }
     },
@@ -11884,6 +11917,17 @@ the `carbon-route` will update `route.path`. This in-turn will update the
       this.linkPaths('tail.__queryParams', 'route.__queryParams');
     },
 
+    // IE Object.assign polyfill
+    __assign: function(target, source) {
+      if (source != null) {
+        for (var key in source) {
+          target[key] = source[key];
+        }
+      }
+
+      return target;
+    },
+
     // Deal with the query params object being assigned to wholesale
     __routeQueryParamsChanged: function(queryParams) {
       if (queryParams && this.tail) {
@@ -11894,7 +11938,16 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         }
 
         this._skipMatch = true;
-        this.set('queryParams', Object.assign({}, queryParams));
+
+        var qp;
+
+        if (Object.assign) {
+          qp = Object.assign({}, queryParams);
+        } else {
+          qp = this.__assign({}, queryParams);
+        }
+
+        this.set('queryParams', qp);
         this._skipMatch = false;
       }
     },
@@ -11958,7 +12011,7 @@ the `carbon-route` will update `route.path`. This in-turn will update the
         }
       }
 
-      var matched = matched.join('/');
+      matched = matched.join('/');
       var tailPath = remainingPieces.join('/');
       if (remainingPieces.length > 0) {
         tailPath = '/' + tailPath;
@@ -12994,6 +13047,13 @@ Custom property | Description | Default
     var SPACE_KEY = /^space(bar)?/;
 
     /**
+     * Matches ESC key.
+     *
+     * Value from: http://w3c.github.io/uievents-key/#key-Escape
+     */
+    var ESC_KEY = /^escape$/;
+
+    /**
      * Transforms the key.
      * @param {string} key The KeyBoardEvent.key
      * @param {Boolean} [noSpecialChars] Limits the transformation to
@@ -13005,6 +13065,8 @@ Custom property | Description | Default
         var lKey = key.toLowerCase();
         if (lKey === ' ' || SPACE_KEY.test(lKey)) {
           validKey = 'space';
+        } else if (ESC_KEY.test(lKey)) {
+          validKey = 'esc';
         } else if (lKey.length == 1) {
           if (!noSpecialChars || KEY_CHAR.test(lKey)) {
             validKey = lKey;
@@ -13048,10 +13110,10 @@ Custom property | Description | Default
           validKey = 'f' + (keyCode - 112);
         } else if (keyCode >= 48 && keyCode <= 57) {
           // top 0-9 keys
-          validKey = String(48 - keyCode);
+          validKey = String(keyCode - 48);
         } else if (keyCode >= 96 && keyCode <= 105) {
           // num pad 0-9
-          validKey = String(96 - keyCode);
+          validKey = String(keyCode - 96);
         } else {
           validKey = KEY_CODE[keyCode];
         }
@@ -13216,6 +13278,13 @@ Custom property | Description | Default
         this._resetKeyEventListeners();
       },
 
+      /**
+       * Returns true if a keyboard event matches `eventString`.
+       *
+       * @param {KeyboardEvent} event
+       * @param {string} eventString
+       * @return {boolean}
+       */
       keyboardEventMatchesKeys: function(event, eventString) {
         var keyCombos = parseEventString(eventString);
         for (var i = 0; i < keyCombos.length; ++i) {
@@ -14522,6 +14591,15 @@ Custom property | Description | Default
       },
 
       /**
+       * Default fallback if the selection based on selected with `attrForSelected`
+       * is not found.
+       */
+      fallbackSelection: {
+        type: String,
+        value: null
+      },
+
+      /**
        * The list of items from which a selection can be made.
        */
       items: {
@@ -14551,7 +14629,8 @@ Custom property | Description | Default
 
     observers: [
       '_updateAttrForSelected(attrForSelected)',
-      '_updateSelected(selected)'
+      '_updateSelected(selected)',
+      '_checkFallback(fallbackSelection)'
     ],
 
     created: function() {
@@ -14637,6 +14716,12 @@ Custom property | Description | Default
       return this.selected != null;
     },
 
+    _checkFallback: function() {
+      if (this._shouldUpdateSelection) {
+        this._updateSelected();
+      }
+    },
+
     _addListener: function(eventName) {
       this.listen(this, eventName, '_activateHandler');
     },
@@ -14658,7 +14743,7 @@ Custom property | Description | Default
 
     _updateAttrForSelected: function() {
       if (this._shouldUpdateSelection) {
-        this.selected = this._indexToValue(this.indexOf(this.selectedItem));        
+        this.selected = this._indexToValue(this.indexOf(this.selectedItem));
       }
     },
 
@@ -14668,6 +14753,11 @@ Custom property | Description | Default
 
     _selectSelected: function(selected) {
       this._selection.select(this._valueToItem(this.selected));
+      // Check for items, since this array is populated only when attached
+      // Since Number(0) is falsy, explicitly check for undefined
+      if (this.fallbackSelection && this.items.length && (this._selection.get() === undefined)) {
+        this.selected = this.fallbackSelection;
+      }
     },
 
     _filterItem: function(node) {
@@ -14834,7 +14924,7 @@ Custom property | Description | Default
         Polymer.IronSelectableBehavior._updateAttrForSelected.apply(this);
       } else if (this._shouldUpdateSelection) {
         this.selectedValues = this.selectedItems.map(function(selectedItem) {
-          return this._indexToValue(this.indexOf(selectedItem));        
+          return this._indexToValue(this.indexOf(selectedItem));
         }, this).filter(function(unfilteredValue) {
           return unfilteredValue != null;
         }, this);
@@ -14857,6 +14947,13 @@ Custom property | Description | Default
         // select only those not selected yet
         for (var i = 0; i < selectedItems.length; i++) {
           this._selection.setItemSelected(selectedItems[i], true);
+        }
+        // Check for items, since this array is populated only when attached
+        if (this.fallbackSelection && this.items.length && !this._selection.get().length) {
+          var fallback = this._valueToItem(this.fallbackSelection);
+          if (fallback) {
+            this.selectedValues = [this.fallbackSelection];
+          }
         }
       } else {
         this._selection.clear();
@@ -14881,7 +14978,6 @@ Custom property | Description | Default
       } else {
         this.splice('selectedValues',i,1);
       }
-      this._selection.setItemSelected(this._valueToItem(value), unselected);
     },
 
     _valuesToItems: function(values) {
@@ -15708,7 +15804,7 @@ between different views.
 
 
 To use links in tabs, add `link` attribute to `paper-tab` and put an `<a>`
-element in `paper-tab`.
+element in `paper-tab` with a `tabindex` of -1.
 
 Example:
 
@@ -15722,13 +15818,13 @@ Example:
 
 &lt;paper-tabs selected="0">
   &lt;paper-tab link>
-    &lt;a href="#link1" class="link">TAB ONE&lt;/a>
+    &lt;a href="#link1" class="link" tabindex="-1">TAB ONE&lt;/a>
   &lt;/paper-tab>
   &lt;paper-tab link>
-    &lt;a href="#link2" class="link">TAB TWO&lt;/a>
+    &lt;a href="#link2" class="link" tabindex="-1">TAB TWO&lt;/a>
   &lt;/paper-tab>
   &lt;paper-tab link>
-    &lt;a href="#link3" class="link">TAB THREE&lt;/a>
+    &lt;a href="#link3" class="link" tabindex="-1">TAB THREE&lt;/a>
   &lt;/paper-tab>
 &lt;/paper-tabs>
 </code></pre>
@@ -15875,7 +15971,6 @@ Example:
 
 </script>
 <!--
-
 app-drawer is a navigation drawer that can slide in from the left or right.
 
 Example:
@@ -16201,11 +16296,18 @@ Custom property                          | Description                          
    *
    * ### Importing the app-layout effects
    *
-   * app-layout provides a set of scroll effects that can be used by explicitly importing 
+   * app-layout provides a set of scroll effects that can be used by explicitly importing
    * `app-scroll-effects.html`:
    *
    * ```html
    * <link rel="import" href="/bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+   * ```
+   *
+   * The scroll effects can also be used by individually importing
+   * `app-layout/app-scroll-effects/effects/[effectName].html`. For example:
+   *
+   * ```html
+   *  <link rel="import" href="/bower_components/app-layout/app-scroll-effects/effects/waterfall.html">
    * ```
    *
    * ### Consuming effects
@@ -16331,7 +16433,6 @@ Custom property                          | Description                          
      * Updates the scroll state. This method should be overridden
      * by the consumer of this behavior.
      *
-     * @abstract
      * @method _updateScrollState
      */
     _updateScrollState: function() {},
@@ -16416,7 +16517,6 @@ Custom property                          | Description                          
       var effectDef = Polymer.AppLayout.scrollEffects[effectName];
       if (!effectDef) {
         throw new ReferenceError(this._getUndefinedMsg(effectName));
-        return;
       }
       var prop = this._boundEffect(effectDef, effectConfig || {});
       prop.setUp();
@@ -16456,8 +16556,8 @@ Custom property                          | Description                          
     /**
      * Returns an effect object bound to the current context.
      *
-     * @param {Object}
-     * @param {Object=} The effect config object if the effect accepts config values. (Optional)
+     * @param {Object} effectDef
+     * @param {Object=} effectsConfig The effect config object if the effect accepts config values. (Optional)
      */
     _boundEffect: function(effectDef, effectsConfig) {
       effectsConfig = effectsConfig || {};
@@ -16507,8 +16607,8 @@ Custom property                          | Description                          
     /**
      * Runs the effects.
      *
-     * @param {number} The progress
-     * @param {number} The top position of the current element relative to the viewport.
+     * @param {number} p The progress
+     * @param {number} y The top position of the current element relative to the viewport.
      */
     _runEffects: function(p, y) {
       this._effectsRunFn.forEach(function(run) {
@@ -16526,15 +16626,14 @@ Custom property                          | Description                          
     },
 
     _getUndefinedMsg: function(effectName) {
-      return 'Scroll effect `' + effectName +
-          '` is undefined. Did you forget to import the effects?';
+      return 'Scroll effect `' + effectName + '` is undefined. ' +
+          'Did you forget to import app-layout/app-scroll-effects/effects/' + effectName + '.html ?';
     }
 
   }];
 
 </script>
 <!--
-
 app-header is container element for app-toolbars at the top of the screen that can have scroll
 effects. By default, an app-header moves away from the viewport when scrolling down and
 if using `reveals`, the header slides back when scrolling back up. For example:
@@ -16609,7 +16708,7 @@ or when the scrollable element is scrolled to the top.
 ## Scroll effects
 
 Scroll effects are _optional_ visual effects applied in app-header based on scroll position. For example,
-The [Material Design scrollig techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
+The [Material Design scrolling techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
 recommends effects that can be installed via the `effects` property. e.g.
 
 ```html
@@ -16895,19 +16994,12 @@ Mixin | Description | Default
 -->
 
 <script>
-
-(function(scrollEffects) {
-  function interpolate(progress, points, fn, ctx) {
-    fn.apply(ctx, points.map(function(point) {
-      return point[0] + (point[1] - point[0]) * progress;
-    }));
-  }
-
   /**
    * While scrolling down, fade in the rear background layer and fade out the front background
    * layer (opacity interpolated based on scroll position).
    */
-  scrollEffects['blend-background'] = {
+  Polymer.AppLayout.scrollEffects['blend-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
     setUp: function setUp() {
       this.$.backgroundFrontLayer.style.willChange = 'opacity';
       this.$.backgroundFrontLayer.style.webkitTransform = 'translateZ(0)';
@@ -16915,17 +17007,20 @@ Mixin | Description | Default
       this.$.backgroundRearLayer.style.webkitTransform = 'translateZ(0)';
       this.$.backgroundRearLayer.style.opacity = 0;
     },
+    /** @this Polymer.AppLayout.ElementWithBackground */
     run: function run(p, y) {
       this.$.backgroundFrontLayer.style.opacity = 1 - p;
       this.$.backgroundRearLayer.style.opacity = p;
     }
   };
-
+</script>
+<script>
   /**
    * Upon scrolling past a threshold, fade in the rear background layer and fade out the front
    * background layer (opacity CSS transitioned over time).
    */
-  scrollEffects['fade-background'] = {
+  Polymer.AppLayout.scrollEffects['fade-background'] = {
+    /** @this Polymer.AppLayout.ElementWithBackground */
     setUp: function setUp(config) {
       var duration = config.duration || '0.5s';
       this.$.backgroundFrontLayer.style.willChange = 'opacity';
@@ -16937,7 +17032,8 @@ Mixin | Description | Default
       this.$.backgroundRearLayer.style.transitionProperty = 'opacity';
       this.$.backgroundRearLayer.style.transitionDuration = duration;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       if (p >= 1) {
         this.$.backgroundFrontLayer.style.opacity = 0;
         this.$.backgroundRearLayer.style.opacity = 1;
@@ -16947,19 +17043,117 @@ Mixin | Description | Default
       }
     }
   };
+</script>
+<script>
+  /**
+   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
+   * between the element and the content underneath.
+   */
+  Polymer.AppLayout.scrollEffects.waterfall = {
+    /**
+     *  @this Polymer.AppLayout.ElementWithBackground
+     */
+    run: function run(p, y) {
+      this.shadow = this.isOnScreen() && this.isContentBelow();
+    }
+  };
+</script>
+<script>
+  (function() {
+    function interpolate(progress, points, fn, ctx) {
+      fn.apply(ctx, points.map(function(point) {
+        return point[0] + (point[1] - point[0]) * progress;
+      }));
+    }
 
+    /**
+     * Transform the font size of a designated title element between two values based on the scroll
+     * position.
+     */
+    Polymer.AppLayout.scrollEffects['resize-title'] = {
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      setUp: function setUp() {
+        var title = Polymer.dom(this).querySelector('[title]');
+        var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
+
+        if (!condensedTitle) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
+          return false;
+        }
+        if (!title) {
+          this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
+          return false;
+        }
+
+        condensedTitle.style.willChange = 'opacity';
+        title.style.willChange = 'opacity';
+
+        condensedTitle.style.webkitTransform = 'translateZ(0)';
+        title.style.webkitTransform = 'translateZ(0)';
+
+        var titleClientRect = title.getBoundingClientRect();
+        var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
+        var fx = {};
+
+        fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
+            parseInt(window.getComputedStyle(title)['font-size'], 10);
+        fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
+        fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
+        fx.condensedTitle = condensedTitle;
+        fx.title = title;
+
+        this._fxResizeTitle = fx;
+      },
+      /** @this Polymer.AppLayout.ElementWithBackground */
+      tearDown: function tearDown() {
+        delete this._fxResizeTitle;
+      },
+      /** @this PolymerElement */
+      run: function run(p, y) {
+        var fx = this._fxResizeTitle;
+        if (!this.condenses) {
+          y = 0;
+        }
+        if (p >= 1) {
+          fx.title.style.opacity = 0;
+          fx.condensedTitle.style.opacity = 1;
+        } else {
+          fx.title.style.opacity = 1;
+          fx.condensedTitle.style.opacity = 0;
+        }
+
+        interpolate(Math.min(1, p),
+          [
+            [1, fx.scale],
+            [0, -fx.titleDX],
+            [y, y-fx.titleDY]
+          ],
+          function(scale, translateX, translateY) {
+            this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
+                'scale3d(' + scale + ', ' + scale + ', 1)', fx.title);
+          }, this);
+      }
+    };
+  })();
+</script>
+<script>
   /**
    * Vertically translate the background based on a factor of the scroll position.
    */
-  scrollEffects['parallax-background'] = {
+  Polymer.AppLayout.scrollEffects['parallax-background'] = {
+    /**
+     * @param {{scalar: string}} config
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp(config) {
       var scalar = parseFloat(config.scalar);
+
       this._deltaBg = this.$.backgroundFrontLayer.offsetHeight - this.$.background.offsetHeight;
       if (this._deltaBg === 0) {
         if (isNaN(scalar)) {
           scalar = 0.8;
         }
-        this._deltaBg = this._deltaHeight * scalar;
+        this._deltaBg = this._dHeight * scalar;
       } else {
         if (isNaN(scalar)) {
           scalar = 1;
@@ -16967,87 +17161,42 @@ Mixin | Description | Default
         this._deltaBg = this._deltaBg * scalar;
       }
     },
-    tearDown: function() {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    tearDown: function tearDown() {
       delete this._deltaBg;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundFrontLayer);
       if (this.$.backgroundRearLayer) {
         this.transform('translate3d(0px, ' + (this._deltaBg * Math.min(1, p)) + 'px, 0px)', this.$.backgroundRearLayer);
       }
     }
   };
-
+</script>
+<script>
   /**
-   * Transform the font size of a designated title element between two values based on the scroll
-   * position.
+   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
    */
-  scrollEffects['resize-title'] = {
+  Polymer.AppLayout.scrollEffects.material = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp() {
-      var title = Polymer.dom(this).querySelector('[title]');
-      var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
-
-      if (!condensedTitle) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `condensed-title`'));
-        return false;
-      }
-      if (!title) {
-        this._warn(this._logf('effects[resize-title]', 'undefined `title`'));
-        return false;
-      }
-
-      condensedTitle.style.willChange = 'opacity';
-      title.style.willChange = 'opacity';
-
-      condensedTitle.style.webkitTransform = 'translateZ(0)';
-      title.style.webkitTransform = 'translateZ(0)';
-
-      var titleClientRect = title.getBoundingClientRect();
-      var condensedTitleClientRect = condensedTitle.getBoundingClientRect();
-      var fx = {};
-
-      fx.scale = parseInt(window.getComputedStyle(condensedTitle)['font-size'], 10) /
-          parseInt(window.getComputedStyle(title)['font-size'], 10);
-      fx.titleDX = titleClientRect.left - condensedTitleClientRect.left;
-      fx.titleDY = titleClientRect.top - condensedTitleClientRect.top;
-      fx.condensedTitle = condensedTitle;
-      fx.title = title;
-
-      this._fxResizeTitle = fx;
-    },
-    tearDown: function tearDown() {
-      delete this._fxResizeTitle;
-    },
-    run: function run(p, y) {
-      var fx = this._fxResizeTitle;
-      if (!this.condenses) {
-        y = 0;
-      }
-      if (p >= 1) {
-        fx.title.style.opacity = 0;
-        fx.condensedTitle.style.opacity = 1;
-      } else {
-        fx.title.style.opacity = 1;
-        fx.condensedTitle.style.opacity = 0;
-      }
-      interpolate(Math.min(1, p), [
-        [1,  fx.scale],
-        [0, -fx.titleDX],
-        [y, y-fx.titleDY]
-      ],
-      function(scale, translateX, translateY) {
-        this.transform('translate(' + translateX + 'px, ' + translateY + 'px) ' +
-            'scale3d(' + scale + ', ' + scale + ', 1)',
-            fx.title);
-      }, this);
+      this.effects = 'waterfall resize-title blend-background parallax-background';
+      return false;
     }
   };
-
+</script>
+<script>
   /**
    * Upon scrolling past a threshold, CSS transition the font size of a designated title element
    * between two values.
    */
-  scrollEffects['resize-snapped-title'] = {
+  Polymer.AppLayout.scrollEffects['resize-snapped-title'] = {
+    /**
+     * @this Polymer.AppLayout.ElementWithBackground
+     */
     setUp: function setUp(config) {
       var title = Polymer.dom(this).querySelector('[title]');
       var condensedTitle = Polymer.dom(this).querySelector('[condensed-title]');
@@ -17072,13 +17221,15 @@ Mixin | Description | Default
       fx.title = title;
       this._fxResizeSnappedTitle = fx;
     },
+    /** @this Polymer.AppLayout.ElementWithBackground */
     tearDown: function tearDown() {
       var fx = this._fxResizeSnappedTitle;
       fx.title.style.transition = '';
       fx.condensedTitle.style.transition = '';
       delete this._fxResizeSnappedTitle;
     },
-    run: function run(p) {
+    /** @this Polymer.AppLayout.ElementWithBackground */
+    run: function run(p, y) {
       var fx = this._fxResizeSnappedTitle;
       if (p > 0) {
         fx.title.style.opacity = 0;
@@ -17089,29 +17240,6 @@ Mixin | Description | Default
       }
     }
   };
-
-  /**
-   * Toggles the shadow property in app-header when content is scrolled to create a sense of depth
-   * between the element and the content underneath.
-   */
-  scrollEffects.waterfall = {
-    run: function run() {
-      this.shadow = this.isOnScreen() && this.isContentBelow();
-    }
-  };
-
-  /**
-   * Shorthand for the waterfall, resize-title, blend-background, and parallax-background effects.
-   */
-  scrollEffects.material = {
-    setUp: function() {
-      this.effects = 'waterfall resize-title blend-background parallax-background';
-      return false;
-    }
-  };
-
-})(Polymer.AppLayout.scrollEffects);
-
 </script>
 <script>
 
@@ -18343,7 +18471,7 @@ Custom property | Description | Default
         overflow: hidden;
         cursor: pointer;
         vertical-align: middle;
-        
+
         @apply(--paper-font-common-base);
         @apply(--paper-tab);
       }
@@ -18404,12 +18532,27 @@ Custom property | Description | Default
         Polymer.PaperRippleBehavior
       ],
 
+      properties: {
+
+        /**
+         * If true, the tab will forward keyboard clicks (enter/space) to
+         * the first anchor element found in its descendants
+         */
+        link: {
+          type: Boolean,
+          value: false,
+          reflectToAttribute: true
+        }
+
+      },
+
       hostAttributes: {
         role: 'tab'
       },
 
       listeners: {
-        down: '_updateNoink'
+        down: '_updateNoink',
+        tap: '_onTap'
       },
 
       attached: function() {
@@ -18423,7 +18566,26 @@ Custom property | Description | Default
 
       _updateNoink: function() {
         this.noink = !!this.noink || !!this._parentNoink;
+      },
+
+      _onTap: function(event) {
+        if (this.link) {
+          var anchor = this.queryEffectiveChildren('a');
+
+          if (!anchor) {
+            return;
+          }
+
+          // Don't get stuck in a loop delegating
+          // the listener from the child anchor
+          if (event.target === anchor) {
+            return;
+          }
+
+          anchor.click();
+        }
       }
+
     });
   </script>
 </dom-module>
@@ -19315,129 +19477,130 @@ Custom property | Description | Default
   </script>
 </dom-module>
 <dom-module id="app-drawer" assetpath="../../app-drawer/">
-
-  <style>
-
-    :host {
-      position: fixed;
-      top: -120px;
-      bottom: -120px;
-      left: 0;
-      right: 0;
-      visibility: hidden;
-      transition: visibility 0.2s ease;
-    }
-
-    :host([opened]) {
-      visibility: visible;
-    }
-
-    :host([persistent]) {
-      width: var(--app-drawer-width, 256px);
-    }
-
-    :host([persistent][position=left]) {
-      right: auto;
-    }
-
-    :host([persistent][position=right]) {
-      left: auto;
-    }
-
-    #contentContainer {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      width: var(--app-drawer-width, 256px);
-      background-color: #FFF;
-      padding: 120px 0;
-
-      transition: 0.2s ease;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-
-      -webkit-transform: translate3d(-100%, 0, 0);
-      transform: translate3d(-100%, 0, 0);
-
-      @apply(--app-drawer-content-container);
-    }
-
-    :host([position=right]) > #contentContainer {
-      left: auto;
-      right: 0;
-
-      -webkit-transform: translate3d(100%, 0, 0);
-      transform: translate3d(100%, 0, 0);
-    }
-
-    :host([swipe-open]) > #contentContainer::after {
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      left: 100%;
-      width: 15px;
-      content: '';
-      visibility: visible;
-    }
-
-    :host([swipe-open][position=right]) > #contentContainer::after {
-      left: auto;
-      right: 100%;
-    }
-
-    :host([opened]) > #contentContainer {
-      -webkit-transform: translate3d(0, 0, 0);
-      transform: translate3d(0, 0, 0);
-    }
-
-    #scrim {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
-      opacity: 0;
-      transition: opacity 0.2s ease;
-
-      -webkit-transform: translateZ(0);
-      transform:  translateZ(0);
-    }
-
-    :host([opened]) > #scrim {
-      opacity: 1;
-    }
-
-    :host([opened][persistent]) > #scrim {
-      /**
-       * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
-       * scrim from showing when toggling between closed and opened/persistent.
-       */
-      opacity: 0;
-      visibility: hidden;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: fixed;
+        top: -120px;
+        right: 0;
+        bottom: -120px;
+        left: 0;
+
+        visibility: hidden;
+
+        transition: visibility 0.2s ease;
+      }
+
+      :host([opened]) {
+        visibility: visible;
+      }
+
+      :host([persistent]) {
+        width: var(--app-drawer-width, 256px);
+      }
+
+      :host([persistent][position=left]) {
+        right: auto;
+      }
+
+      :host([persistent][position=right]) {
+        left: auto;
+      }
+
+      #contentContainer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+
+        width: var(--app-drawer-width, 256px);
+        padding: 120px 0;
+
+        transition: 0.2s ease;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+
+        background-color: #FFF;
+
+        @apply(--app-drawer-content-container);
+      }
+
+      :host([position=right]) > #contentContainer {
+        right: 0;
+        left: auto;
+
+        -webkit-transform: translate3d(100%, 0, 0);
+        transform: translate3d(100%, 0, 0);
+      }
+
+      :host([swipe-open]) > #contentContainer::after {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 100%;
+
+        visibility: visible;
+
+        width: 15px;
+
+        content: '';
+      }
+
+      :host([swipe-open][position=right]) > #contentContainer::after {
+        right: 100%;
+        left: auto;
+      }
+
+      :host([opened]) > #contentContainer {
+        -webkit-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #scrim {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+
+        transition: opacity 0.2s ease;
+        -webkit-transform: translateZ(0);
+        transform:  translateZ(0);
+
+        opacity: 0;
+        background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
+      }
+
+      :host([opened]) > #scrim {
+        opacity: 1;
+      }
+
+      :host([opened][persistent]) > #scrim {
+        visibility: hidden;
+        /**
+         * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+         * scrim from showing when toggling between closed and opened/persistent.
+         */
+
+        opacity: 0;
+      }
+    </style>
 
     <div id="scrim" on-tap="close"></div>
 
     <div id="contentContainer">
       <content></content>
     </div>
-
   </template>
 
   <script>
 
     Polymer({
-
       is: 'app-drawer',
 
       properties: {
-
         /**
          * The opened state of the drawer.
          */
@@ -19485,7 +19648,6 @@ Custom property | Description | Default
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -19847,37 +20009,32 @@ Custom property | Description | Default
        *
        * @event app-drawer-transitioned
        */
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-drawer-layout" assetpath="../../app-drawer-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([fullbleed]) {
-      @apply(--layout-fit);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      transition: var(--app-drawer-layout-content-transition, none);
-    }
-
-    #contentContainer:not(.narrow) > ::content [drawer-toggle] {
-      display: none;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host([fullbleed]) {
+        @apply(--layout-fit);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        height: 100%;
+
+        transition: var(--app-drawer-layout-content-transition, none);
+      }
+
+      #contentContainer:not(.narrow) > ::content [drawer-toggle] {
+        display: none;
+      }
+    </style>
 
     <div id="contentContainer" class$="[[_computeClass(narrow)]]">
       <content select=":not(app-drawer)"></content>
@@ -19886,17 +20043,17 @@ Custom property | Description | Default
     <content id="drawerContent" select="app-drawer"></content>
 
     <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]" on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-drawer-layout',
 
-      properties: {
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
 
+      properties: {
         /**
          * Returns true if the panel is in narrow layout. This is useful if you
          * need to show/hide elements based on the layout.
@@ -19926,7 +20083,6 @@ Custom property | Description | Default
           type: String,
           value: '640px'
         }
-
       },
 
       listeners: {
@@ -19976,6 +20132,7 @@ Custom property | Description | Default
             this.$.contentContainer.style.marginLeft = this.drawer.getWidth() + 'px';
             this.$.contentContainer.style.marginRight = '';
           }
+          this.notifyResize();
         });
       },
 
@@ -19996,103 +20153,112 @@ Custom property | Description | Default
       _computeClass: function(narrow) {
         return narrow ? 'narrow' : '';
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header" assetpath="../../app-header/">
-  <style>
-
-    :host {
-      position: relative;
-      display: block;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-      transition-timing-function: linear;
-    }
-
-    :host::after {
-      content: "";
-      position: absolute;
-      left: 0px;
-      right: 0px;
-      bottom: -5px;
-      width: 100%;
-      height: 5px;
-      pointer-events: none;
-      opacity: 0;
-      box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
-      will-change: opacity;
-      transition: opacity 0.4s;
-      @apply(--app-header-shadow);
-    }
-
-    :host([shadow])::after {
-      opacity: 1;
-    }
-
-    #contentContainer > ::content [condensed-title] {
-      opacity: 0;
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #contentContainer > ::content [title] {
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #background {
-      @apply(--layout-fit);
-      overflow: hidden;
-    }
-
-    #backgroundFrontLayer,
-    #backgroundRearLayer {
-      @apply(--layout-fit);
-      pointer-events: none;
-      background-size: cover;
-      height: 100%;
-    }
-
-    #backgroundFrontLayer {
-      @apply(--app-header-background-front-layer);
-    }
-
-    #backgroundRearLayer {
-      @apply(--app-header-background-rear-layer);
-      opacity: 0;
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      width: 100%;
-    }
-
-    :host([disabled]),
-    :host([disabled])::after,
-    :host([disabled]) #backgroundFrontLayer,
-    :host([disabled]) #backgroundRearLayer,
-    :host([disabled]) ::content > app-toolbar:first-of-type,
-    :host([disabled]) ::content > [primary],
-    /* Silent scrolling should not run CSS transitions */
-    :host-context(.app-layout-silent-scroll),
-    :host-context(.app-layout-silent-scroll)::after,
-    :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
-    :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
-    :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
-    :host-context(.app-layout-silent-scroll) ::content > [primary] {
-      transition: none !important;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+
+        transition-timing-function: linear;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+      }
+
+      :host::after {
+        position: absolute;
+        right: 0px;
+        bottom: -5px;
+        left: 0px;
+
+        width: 100%;
+        height: 5px;
+
+        content: "";
+        transition: opacity 0.4s;
+        pointer-events: none;
+
+        opacity: 0;
+        box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
+
+        will-change: opacity;
+
+        @apply(--app-header-shadow);
+      }
+
+      :host([shadow])::after {
+        opacity: 1;
+      }
+
+      #contentContainer > ::content [condensed-title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+
+        opacity: 0;
+      }
+
+      #contentContainer > ::content [title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+      }
+
+      #backgroundFrontLayer,
+      #backgroundRearLayer {
+        @apply(--layout-fit);
+
+        height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+      }
+
+      #backgroundFrontLayer {
+        @apply(--app-header-background-front-layer);
+      }
+
+      #backgroundRearLayer {
+        opacity: 0;
+
+        @apply(--app-header-background-rear-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled])::after,
+      :host([disabled]) #backgroundFrontLayer,
+      :host([disabled]) #backgroundRearLayer,
+      :host([disabled]) ::content > app-toolbar:first-of-type,
+      :host([disabled]) ::content > [primary],
+      /* Silent scrolling should not run CSS transitions */
+      :host-context(.app-layout-silent-scroll),
+      :host-context(.app-layout-silent-scroll)::after,
+      :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
+      :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
+      :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
+      :host-context(.app-layout-silent-scroll) ::content > [primary] {
+        transition: none !important;
+      }
+    </style>
+
     <div id="background">
       <div id="backgroundRearLayer"></div>
       <div id="backgroundFrontLayer"></div>
@@ -20103,9 +20269,7 @@ Custom property | Description | Default
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header',
 
       behaviors: [
@@ -20114,7 +20278,6 @@ Custom property | Description | Default
       ],
 
       properties: {
-
         /**
          * If true, the header will automatically collapse when scrolling down.
          * That is, the `primary` element remains visible when the header is fully condensed
@@ -20173,7 +20336,6 @@ Custom property | Description | Default
           reflectToAttribute: true,
           value: false
         }
-
       },
 
       observers: [
@@ -20208,7 +20370,7 @@ Custom property | Description | Default
       /**
        * The element that remains visible when the header condenses.
        *
-       * @type {Element}
+       * @type {HTMLElement}
        */
       _primaryEl: null,
 
@@ -20247,15 +20409,18 @@ Custom property | Description | Default
        * @return {HTMLElement}?
        */
       _getPrimaryEl: function() {
+        /** @type {HTMLElement} */
         var primaryEl;
         var nodes = Polymer.dom(this.$.content).getDistributedNodes();
 
         for (var i = 0; i < nodes.length; i++) {
           if (nodes[i].nodeType === Node.ELEMENT_NODE) {
-            if (nodes[i].hasAttribute('primary')) {
-              return nodes[i];
+            var node = /** @type {HTMLElement} */ (nodes[i]);
+            if (node.hasAttribute('primary')) {
+              primaryEl = node;
+              break;
             } else if (!primaryEl) {
-              primaryEl = nodes[i];
+              primaryEl = node;
             }
           }
         }
@@ -20268,7 +20433,6 @@ Custom property | Description | Default
        * @method resetLayout
        */
       resetLayout: function() {
-
         this.fire('app-header-reset-layout');
 
         this.debounce('_resetLayout', function() {
@@ -20313,8 +20477,8 @@ Custom property | Description | Default
       /**
        * Updates the scroll state.
        *
-       * @param {number}
-       * @param {boolean}
+       * @param {number} scrollTop
+       * @param {boolean=} forceUpdate (default: false)
        */
       _updateScrollState: function(scrollTop, forceUpdate) {
         if (this._height === 0) {
@@ -20431,7 +20595,7 @@ Custom property | Description | Default
       /**
        * Transforms the header.
        *
-       * @param {number}
+       * @param {number} y
        */
       _transformHeader: function(y) {
         this.translate3d(0, (-y) + 'px', 0);
@@ -20467,68 +20631,62 @@ Custom property | Description | Default
        * @event app-header-reset-layout
        */
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header-layout" assetpath="../../app-header-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([has-scrolling-region]) {
-      position: relative;
-      height: 100%;
-    }
-
-    :host > ::content > app-header,
-    :host > ::content > [underlay-content] {
-      position: fixed;
-      top: 0;
-      right: 0;
-      left: 0;
-    }
-
-    :host([has-scrolling-region]) > ::content > app-header,
-    :host([has-scrolling-region]) > ::content > [underlay-content] {
-      position: absolute;
-    }
-
-    :host([has-scrolling-region]) > #contentContainer {
-      @apply(--layout-fit);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    #contentContainer {
-      position: relative;
-      overflow-y: hidden;
-      @apply(--app-header-layout-content);
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
 
-    <content id="underlayContent" select="[underlay-content]"></content>
+        /**
+         * Force app-header-layout to have its own stacking context so that its parent can
+         * control the stacking of it relative to other elements (e.g. app-drawer-layout).
+         * This could be done using `isolation: isolate`, but that's not well supported
+         * across browsers.
+         */
+        position: relative;
+        z-index: 0;
+      }
 
-    <div id="contentContainer">
-      <content select=":not(app-header):not([app-header-overlay])"></content>
-    </div>
+      :host([has-scrolling-region]) {
+        height: 100%;
+      }
+
+      :host > ::content > app-header {
+        @apply(--layout-fixed-top);
+
+        z-index: 1;
+      }
+
+      :host([has-scrolling-region]) > ::content > app-header {
+        position: absolute;
+      }
+
+      #contentContainer {
+        /* Create a stacking context here so that all children appear below the header. */
+        position: relative;
+        z-index: 0;
+      }
+
+      :host([has-scrolling-region]) > #contentContainer {
+        @apply(--layout-fit);
+
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
 
     <content id="header" select="app-header"></content>
 
-    <content select="[app-header-overlay]"></content>
+    <div id="contentContainer">
+      <content></content>
+    </div>
 
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header-layout',
 
       behaviors: [
@@ -20536,7 +20694,6 @@ Custom property | Description | Default
       ],
 
       properties: {
-
         /**
          * If true, the current element will have its own scrolling region.
          * Otherwise, it will use the document scroll to control the header.
@@ -20546,7 +20703,6 @@ Custom property | Description | Default
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -20563,7 +20719,8 @@ Custom property | Description | Default
       },
 
       /**
-       * Resets the layout. This method is automatically called when the element is attached to the DOM.
+       * Resets the layout. This method is automatically called when the element is attached
+       * to the DOM.
        *
        * @method resetLayout
        */
@@ -20572,36 +20729,39 @@ Custom property | Description | Default
         this.debounce('_resetLayout', this._updateContentPosition);
       },
 
-      _getFixedNodes: function() {
-        return Polymer.dom(this.$.header).getDistributedNodes().
-            concat(Polymer.dom(this.$.underlayContent).getDistributedNodes());
-      },
-
       _updateContentPosition: function() {
         var header = this.header;
-        var containerStyle = this.$.contentContainer.style;
-
         if (!this.isAttached || !header) {
           return;
         }
 
-        var rect = this.getBoundingClientRect();
-        var rightOffset = document.documentElement.clientWidth - rect.right;
-        this._headerHeight = header.offsetHeight;
+        // Get header height here so that style reads are batched together before style writes
+        // (i.e. getBoundingClientRect() below).
+        var headerHeight = header.offsetHeight;
 
-        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
-          containerStyle.marginTop = this._headerHeight + 'px';
-          containerStyle.paddingTop = '';
+        // Update the header position.
+        if (!this.hasScrollingRegion) {
+          var rect = this.getBoundingClientRect();
+          var rightOffset = document.documentElement.clientWidth - rect.right;
+          header.style.left = rect.left + 'px';
+          header.style.right = rightOffset + 'px';
         } else {
-          containerStyle.paddingTop = this._headerHeight + 'px';
-          containerStyle.marginTop = '';
+          header.style.left = '';
+          header.style.right = '';
         }
 
-        // update fixed nodes
-        this._getFixedNodes().forEach(function(node) {
-          node.style.left = this.hasScrollingRegion ? '' : rect.left + 'px';
-          node.style.right = this.hasScrollingRegion ? '' : rightOffset + 'px';
-        }.bind(this));
+        // Update the content container position.
+        var containerStyle = this.$.contentContainer.style;
+        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
+          // If the header size does not change and we're using a scrolling region, exclude
+          // the header area from the scrolling region so that the header doesn't overlap
+          // the scrollbar.
+          containerStyle.marginTop = headerHeight + 'px';
+          containerStyle.paddingTop = '';
+        } else {
+          containerStyle.paddingTop = headerHeight + 'px';
+          containerStyle.marginTop = '';
+        }
       },
 
       _updateScroller: function() {
@@ -20618,22 +20778,15 @@ Custom property | Description | Default
       _resizeHandler: function() {
         this.resetLayout();
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-scrollpos-control" assetpath="../../app-scrollpos-control/">
-
   <script>
-
     Polymer({
-
       is: 'app-scrollpos-control',
 
       properties: {
-
         /**
          * The selected page.
          */
@@ -20649,7 +20802,6 @@ Custom property | Description | Default
           type: Boolean,
           value: false
         }
-
       },
 
       observers: [
@@ -20684,25 +20836,23 @@ Custom property | Description | Default
           behavior: 'silent'
         });
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-toolbar" assetpath="../../app-toolbar/">
-
   <template>
-
     <style>
-
       :host {
+        position: relative;
+
         @apply(--layout-horizontal);
         @apply(--layout-center);
+
         height: 64px;
         padding: 0 16px;
-        position: relative;
+
         pointer-events: none;
+
         font-size: var(--app-toolbar-font-size, 20px);
       }
 
@@ -20717,80 +20867,78 @@ Custom property | Description | Default
 
       :host > ::content > [title],
       :host > ::content > [condensed-title] {
-        @apply(--layout-flex);
         pointer-events: none;
+        @apply(--layout-flex);
       }
 
       :host > ::content > [bottom-item] {
         position: absolute;
+        right: 0;
         bottom: 0;
         left: 0;
-        right: 0;
       }
 
       :host > ::content > [top-item] {
         position: absolute;
         top: 0;
-        left: 0;
         right: 0;
+        left: 0;
       }
 
       :host > ::content > [spacer] {
         margin-left: 64px;
       }
-
     </style>
 
     <content></content>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-toolbar'
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-box" assetpath="../../app-box/">
-  <style>
-
-    :host {
-      display: block;
-      position: relative;
-    }
-
-    #background {
-      @apply(--layout-fit);
-      overflow: hidden;
-      height: 100%;
-    }
-
-    #backgroundFrontLayer {
-      pointer-events: none;
-      background-size: cover;
-      min-height: 100%;
-      @apply(--app-box-background-front-layer);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      width: 100%;
-    }
-
-    :host([disabled]),
-    :host([disabled]) #backgroundFrontLayer {
-      transition: none !important;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+
+        height: 100%;
+      }
+
+      #backgroundFrontLayer {
+        min-height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+
+        @apply(--app-box-background-front-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled]) #backgroundFrontLayer {
+        transition: none !important;
+      }
+    </style>
+
     <div id="background">
       <div id="backgroundFrontLayer">
         <content select="[background]"></content>
@@ -20803,7 +20951,6 @@ Custom property | Description | Default
 
   <script>
     Polymer({
-
       is: 'app-box',
 
       behaviors: [
@@ -20874,10 +21021,9 @@ Custom property | Description | Default
        * Returns true if this app-box is on the screen.
        * That is, visible in the current viewport.
        *
-       * @method setup
+       * @method isOnScreen
        * @return {boolean}
        */
-
       isOnScreen: function() {
         return this._elementTop < this._scrollTop + this._cachedScrollTargetHeight
             && this._elementTop + this._elementHeight > this._scrollTop;
@@ -20896,10 +21042,8 @@ Custom property | Description | Default
       getScrollState: function() {
         return { progress: this._progress };
       }
-
     });
   </script>
-
 </dom-module>
 <dom-module id="shrine-item" assetpath="src/">
 

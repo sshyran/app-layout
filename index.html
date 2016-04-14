@@ -12304,6 +12304,13 @@ Example:
     var SPACE_KEY = /^space(bar)?/;
 
     /**
+     * Matches ESC key.
+     *
+     * Value from: http://w3c.github.io/uievents-key/#key-Escape
+     */
+    var ESC_KEY = /^escape$/;
+
+    /**
      * Transforms the key.
      * @param {string} key The KeyBoardEvent.key
      * @param {Boolean} [noSpecialChars] Limits the transformation to
@@ -12315,6 +12322,8 @@ Example:
         var lKey = key.toLowerCase();
         if (lKey === ' ' || SPACE_KEY.test(lKey)) {
           validKey = 'space';
+        } else if (ESC_KEY.test(lKey)) {
+          validKey = 'esc';
         } else if (lKey.length == 1) {
           if (!noSpecialChars || KEY_CHAR.test(lKey)) {
             validKey = lKey;
@@ -12358,10 +12367,10 @@ Example:
           validKey = 'f' + (keyCode - 112);
         } else if (keyCode >= 48 && keyCode <= 57) {
           // top 0-9 keys
-          validKey = String(48 - keyCode);
+          validKey = String(keyCode - 48);
         } else if (keyCode >= 96 && keyCode <= 105) {
           // num pad 0-9
-          validKey = String(96 - keyCode);
+          validKey = String(keyCode - 96);
         } else {
           validKey = KEY_CODE[keyCode];
         }
@@ -12526,6 +12535,13 @@ Example:
         this._resetKeyEventListeners();
       },
 
+      /**
+       * Returns true if a keyboard event matches `eventString`.
+       *
+       * @param {KeyboardEvent} event
+       * @param {string} eventString
+       * @return {boolean}
+       */
       keyboardEventMatchesKeys: function(event, eventString) {
         var keyCombos = parseEventString(eventString);
         for (var i = 0; i < keyCombos.length; ++i) {
@@ -13508,105 +13524,6 @@ Example:
   });
 
 </script>
-<!--
-
-app-drawer is a navigation drawer that can slide in from the left or right.
-
-Example:
-
-Align the drawer at the start, which is left in LTR layouts (default):
-
-```html
-<app-drawer opened></app-drawer>
-```
-
-Align the drawer at the end:
-
-```html
-<app-drawer align="end" opened></app-drawer>
-```
-
-To make the contents of the drawer scrollable, create a wrapper for the scroll
-content, and apply height and overflow styles to it.
-
-```html
-<app-drawer>
-  <div style="height: 100%; overflow: auto;"></div>
-</app-drawer>
-```
-
-### Styling
-
-Custom property                  | Description                            | Default
----------------------------------|----------------------------------------|--------------------
-`--app-drawer-width`             | Width of the drawer                    | 256px
-`--app-drawer-content-container` | Mixin for the drawer content container | {}
-`--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
-
-@demo app-drawer/demo.html
--->
-
-<!--
-app-drawer-layout is a wrapper element that positions an app-drawer and other content. When
-the viewport width is smaller than `responsiveWidth`, this element changes to narrow layout.
-In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
-in/out to hide/reveal the main content.
-
-By default the drawer is aligned to the start, which is left in LTR layouts:
-
-```html
-<app-drawer-layout>
-  <app-drawer>
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <div>
-    <!\-\- main content \-\->
-  </div>
-</app-drawer-layout>
-```
-
-Align the drawer at the end:
-
-```html
-<app-drawer-layout>
-  <app-drawer align="end">
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <div>
-    <!\-\- main content \-\->
-  </div>
-</app-drawer-layout>
-```
-
-With an app-header-layout:
-
-```html
-<app-drawer-layout>
-  <app-drawer>
-    <!\-\- drawer content \-\->
-  </app-drawer>
-  <app-header-layout>
-    <app-header>
-      <app-toolbar>
-        <div title>App name</div>
-      </app-toolbar>
-    </app-header>
-
-    <!\-\- main content \-\->
-
-  </app-header-layout>
-</app-drawer-layout>
-```
-
-### Styling
-
-Custom property                          | Description                          | Default
------------------------------------------|--------------------------------------|---------
-`--app-drawer-layout-content-transition` | Transition for the content container | none
-
-@demo app-drawer-layout/demo.html
--->
-
 <script>
   /**
    * `IronResizableBehavior` is a behavior that can be used in Polymer elements to
@@ -13789,6 +13706,104 @@ Custom property                          | Description                          
     }
   };
 </script>
+
+<!--
+app-drawer is a navigation drawer that can slide in from the left or right.
+
+Example:
+
+Align the drawer at the start, which is left in LTR layouts (default):
+
+```html
+<app-drawer opened></app-drawer>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer align="end" opened></app-drawer>
+```
+
+To make the contents of the drawer scrollable, create a wrapper for the scroll
+content, and apply height and overflow styles to it.
+
+```html
+<app-drawer>
+  <div style="height: 100%; overflow: auto;"></div>
+</app-drawer>
+```
+
+### Styling
+
+Custom property                  | Description                            | Default
+---------------------------------|----------------------------------------|--------------------
+`--app-drawer-width`             | Width of the drawer                    | 256px
+`--app-drawer-content-container` | Mixin for the drawer content container | {}
+`--app-drawer-scrim-background`  | Background for the scrim               | rgba(0, 0, 0, 0.5)
+
+@demo app-drawer/demo.html
+-->
+
+<!--
+app-drawer-layout is a wrapper element that positions an app-drawer and other content. When
+the viewport width is smaller than `responsiveWidth`, this element changes to narrow layout.
+In narrow layout, the drawer will be stacked on top of the main content. The drawer will slide
+in/out to hide/reveal the main content.
+
+By default the drawer is aligned to the start, which is left in LTR layouts:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+Align the drawer at the end:
+
+```html
+<app-drawer-layout>
+  <app-drawer align="end">
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <div>
+    <!\-\- main content \-\->
+  </div>
+</app-drawer-layout>
+```
+
+With an app-header-layout:
+
+```html
+<app-drawer-layout>
+  <app-drawer>
+    <!\-\- drawer content \-\->
+  </app-drawer>
+  <app-header-layout>
+    <app-header>
+      <app-toolbar>
+        <div title>App name</div>
+      </app-toolbar>
+    </app-header>
+
+    <!\-\- main content \-\->
+
+  </app-header-layout>
+</app-drawer-layout>
+```
+
+### Styling
+
+Custom property                          | Description                          | Default
+-----------------------------------------|--------------------------------------|---------
+`--app-drawer-layout-content-transition` | Transition for the content container | none
+
+@demo app-drawer-layout/demo.html
+-->
 
 <script>
 
@@ -14018,11 +14033,18 @@ Custom property                          | Description                          
    *
    * ### Importing the app-layout effects
    *
-   * app-layout provides a set of scroll effects that can be used by explicitly importing 
+   * app-layout provides a set of scroll effects that can be used by explicitly importing
    * `app-scroll-effects.html`:
    *
    * ```html
    * <link rel="import" href="/bower_components/app-layout/app-scroll-effects/app-scroll-effects.html">
+   * ```
+   *
+   * The scroll effects can also be used by individually importing
+   * `app-layout/app-scroll-effects/effects/[effectName].html`. For example:
+   *
+   * ```html
+   *  <link rel="import" href="/bower_components/app-layout/app-scroll-effects/effects/waterfall.html">
    * ```
    *
    * ### Consuming effects
@@ -14148,7 +14170,6 @@ Custom property                          | Description                          
      * Updates the scroll state. This method should be overridden
      * by the consumer of this behavior.
      *
-     * @abstract
      * @method _updateScrollState
      */
     _updateScrollState: function() {},
@@ -14233,7 +14254,6 @@ Custom property                          | Description                          
       var effectDef = Polymer.AppLayout.scrollEffects[effectName];
       if (!effectDef) {
         throw new ReferenceError(this._getUndefinedMsg(effectName));
-        return;
       }
       var prop = this._boundEffect(effectDef, effectConfig || {});
       prop.setUp();
@@ -14273,8 +14293,8 @@ Custom property                          | Description                          
     /**
      * Returns an effect object bound to the current context.
      *
-     * @param {Object}
-     * @param {Object=} The effect config object if the effect accepts config values. (Optional)
+     * @param {Object} effectDef
+     * @param {Object=} effectsConfig The effect config object if the effect accepts config values. (Optional)
      */
     _boundEffect: function(effectDef, effectsConfig) {
       effectsConfig = effectsConfig || {};
@@ -14324,8 +14344,8 @@ Custom property                          | Description                          
     /**
      * Runs the effects.
      *
-     * @param {number} The progress
-     * @param {number} The top position of the current element relative to the viewport.
+     * @param {number} p The progress
+     * @param {number} y The top position of the current element relative to the viewport.
      */
     _runEffects: function(p, y) {
       this._effectsRunFn.forEach(function(run) {
@@ -14343,15 +14363,14 @@ Custom property                          | Description                          
     },
 
     _getUndefinedMsg: function(effectName) {
-      return 'Scroll effect `' + effectName +
-          '` is undefined. Did you forget to import the effects?';
+      return 'Scroll effect `' + effectName + '` is undefined. ' +
+          'Did you forget to import app-layout/app-scroll-effects/effects/' + effectName + '.html ?';
     }
 
   }];
 
 </script>
 <!--
-
 app-header is container element for app-toolbars at the top of the screen that can have scroll
 effects. By default, an app-header moves away from the viewport when scrolling down and
 if using `reveals`, the header slides back when scrolling back up. For example:
@@ -14426,7 +14445,7 @@ or when the scrollable element is scrolled to the top.
 ## Scroll effects
 
 Scroll effects are _optional_ visual effects applied in app-header based on scroll position. For example,
-The [Material Design scrollig techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
+The [Material Design scrolling techniques](https://www.google.com/design/spec/patterns/scrolling-techniques.html)
 recommends effects that can be installed via the `effects` property. e.g.
 
 ```html
@@ -14921,6 +14940,15 @@ Mixin | Description | Default
       },
 
       /**
+       * Default fallback if the selection based on selected with `attrForSelected`
+       * is not found.
+       */
+      fallbackSelection: {
+        type: String,
+        value: null
+      },
+
+      /**
        * The list of items from which a selection can be made.
        */
       items: {
@@ -14950,7 +14978,8 @@ Mixin | Description | Default
 
     observers: [
       '_updateAttrForSelected(attrForSelected)',
-      '_updateSelected(selected)'
+      '_updateSelected(selected)',
+      '_checkFallback(fallbackSelection)'
     ],
 
     created: function() {
@@ -15036,6 +15065,12 @@ Mixin | Description | Default
       return this.selected != null;
     },
 
+    _checkFallback: function() {
+      if (this._shouldUpdateSelection) {
+        this._updateSelected();
+      }
+    },
+
     _addListener: function(eventName) {
       this.listen(this, eventName, '_activateHandler');
     },
@@ -15057,7 +15092,7 @@ Mixin | Description | Default
 
     _updateAttrForSelected: function() {
       if (this._shouldUpdateSelection) {
-        this.selected = this._indexToValue(this.indexOf(this.selectedItem));        
+        this.selected = this._indexToValue(this.indexOf(this.selectedItem));
       }
     },
 
@@ -15067,6 +15102,11 @@ Mixin | Description | Default
 
     _selectSelected: function(selected) {
       this._selection.select(this._valueToItem(this.selected));
+      // Check for items, since this array is populated only when attached
+      // Since Number(0) is falsy, explicitly check for undefined
+      if (this.fallbackSelection && this.items.length && (this._selection.get() === undefined)) {
+        this.selected = this.fallbackSelection;
+      }
     },
 
     _filterItem: function(node) {
@@ -15233,7 +15273,7 @@ Mixin | Description | Default
         Polymer.IronSelectableBehavior._updateAttrForSelected.apply(this);
       } else if (this._shouldUpdateSelection) {
         this.selectedValues = this.selectedItems.map(function(selectedItem) {
-          return this._indexToValue(this.indexOf(selectedItem));        
+          return this._indexToValue(this.indexOf(selectedItem));
         }, this).filter(function(unfilteredValue) {
           return unfilteredValue != null;
         }, this);
@@ -15256,6 +15296,13 @@ Mixin | Description | Default
         // select only those not selected yet
         for (var i = 0; i < selectedItems.length; i++) {
           this._selection.setItemSelected(selectedItems[i], true);
+        }
+        // Check for items, since this array is populated only when attached
+        if (this.fallbackSelection && this.items.length && !this._selection.get().length) {
+          var fallback = this._valueToItem(this.fallbackSelection);
+          if (fallback) {
+            this.selectedValues = [this.fallbackSelection];
+          }
         }
       } else {
         this._selection.clear();
@@ -15280,7 +15327,6 @@ Mixin | Description | Default
       } else {
         this.splice('selectedValues',i,1);
       }
-      this._selection.setItemSelected(this._valueToItem(value), unselected);
     },
 
     _valuesToItems: function(values) {
@@ -15322,6 +15368,20 @@ Mixin | Description | Default
         <div name="bar">Bar</div>
         <div name="zot">Zot</div>
       </iron-selector>
+
+  If no matching element is found using `attForSelected`, use `fallbackSelection` as fallback.
+
+  Example:
+
+        <iron-selector attr-for-selected="name" selected="non-existing"
+                       fallback-selection="default">
+          <div name="foo">Foo</div>
+          <div name="bar">Bar</div>
+          <div name="default">Default</div>
+        </iron-selector>
+
+  Note: When the selector is multi, the selection will set to `fallbackSelection` iff
+  the number of matching elements is zero.
 
   `iron-selector` is not styled. Use the `iron-selected` CSS class to style the selected element.
 
@@ -16900,129 +16960,130 @@ Displays a page on different device layouts.
   });
 </script>
 <dom-module id="app-drawer" assetpath="app-drawer/">
-
-  <style>
-
-    :host {
-      position: fixed;
-      top: -120px;
-      bottom: -120px;
-      left: 0;
-      right: 0;
-      visibility: hidden;
-      transition: visibility 0.2s ease;
-    }
-
-    :host([opened]) {
-      visibility: visible;
-    }
-
-    :host([persistent]) {
-      width: var(--app-drawer-width, 256px);
-    }
-
-    :host([persistent][position=left]) {
-      right: auto;
-    }
-
-    :host([persistent][position=right]) {
-      left: auto;
-    }
-
-    #contentContainer {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      width: var(--app-drawer-width, 256px);
-      background-color: #FFF;
-      padding: 120px 0;
-
-      transition: 0.2s ease;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-
-      -webkit-transform: translate3d(-100%, 0, 0);
-      transform: translate3d(-100%, 0, 0);
-
-      @apply(--app-drawer-content-container);
-    }
-
-    :host([position=right]) > #contentContainer {
-      left: auto;
-      right: 0;
-
-      -webkit-transform: translate3d(100%, 0, 0);
-      transform: translate3d(100%, 0, 0);
-    }
-
-    :host([swipe-open]) > #contentContainer::after {
-      position: fixed;
-      top: 0;
-      bottom: 0;
-      left: 100%;
-      width: 15px;
-      content: '';
-      visibility: visible;
-    }
-
-    :host([swipe-open][position=right]) > #contentContainer::after {
-      left: auto;
-      right: 100%;
-    }
-
-    :host([opened]) > #contentContainer {
-      -webkit-transform: translate3d(0, 0, 0);
-      transform: translate3d(0, 0, 0);
-    }
-
-    #scrim {
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
-      opacity: 0;
-      transition: opacity 0.2s ease;
-
-      -webkit-transform: translateZ(0);
-      transform:  translateZ(0);
-    }
-
-    :host([opened]) > #scrim {
-      opacity: 1;
-    }
-
-    :host([opened][persistent]) > #scrim {
-      /**
-       * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
-       * scrim from showing when toggling between closed and opened/persistent.
-       */
-      opacity: 0;
-      visibility: hidden;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: fixed;
+        top: -120px;
+        right: 0;
+        bottom: -120px;
+        left: 0;
+
+        visibility: hidden;
+
+        transition: visibility 0.2s ease;
+      }
+
+      :host([opened]) {
+        visibility: visible;
+      }
+
+      :host([persistent]) {
+        width: var(--app-drawer-width, 256px);
+      }
+
+      :host([persistent][position=left]) {
+        right: auto;
+      }
+
+      :host([persistent][position=right]) {
+        left: auto;
+      }
+
+      #contentContainer {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+
+        width: var(--app-drawer-width, 256px);
+        padding: 120px 0;
+
+        transition: 0.2s ease;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+        -webkit-transform: translate3d(-100%, 0, 0);
+        transform: translate3d(-100%, 0, 0);
+
+        background-color: #FFF;
+
+        @apply(--app-drawer-content-container);
+      }
+
+      :host([position=right]) > #contentContainer {
+        right: 0;
+        left: auto;
+
+        -webkit-transform: translate3d(100%, 0, 0);
+        transform: translate3d(100%, 0, 0);
+      }
+
+      :host([swipe-open]) > #contentContainer::after {
+        position: fixed;
+        top: 0;
+        bottom: 0;
+        left: 100%;
+
+        visibility: visible;
+
+        width: 15px;
+
+        content: '';
+      }
+
+      :host([swipe-open][position=right]) > #contentContainer::after {
+        right: 100%;
+        left: auto;
+      }
+
+      :host([opened]) > #contentContainer {
+        -webkit-transform: translate3d(0, 0, 0);
+        transform: translate3d(0, 0, 0);
+      }
+
+      #scrim {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+
+        transition: opacity 0.2s ease;
+        -webkit-transform: translateZ(0);
+        transform:  translateZ(0);
+
+        opacity: 0;
+        background: var(--app-drawer-scrim-background, rgba(0, 0, 0, 0.5));
+      }
+
+      :host([opened]) > #scrim {
+        opacity: 1;
+      }
+
+      :host([opened][persistent]) > #scrim {
+        visibility: hidden;
+        /**
+         * NOTE(keanulee): Keep both opacity: 0 and visibility: hidden to prevent the
+         * scrim from showing when toggling between closed and opened/persistent.
+         */
+
+        opacity: 0;
+      }
+    </style>
 
     <div id="scrim" on-tap="close"></div>
 
     <div id="contentContainer">
       <content></content>
     </div>
-
   </template>
 
   <script>
 
     Polymer({
-
       is: 'app-drawer',
 
       properties: {
-
         /**
          * The opened state of the drawer.
          */
@@ -17070,7 +17131,6 @@ Displays a page on different device layouts.
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -17432,37 +17492,32 @@ Displays a page on different device layouts.
        *
        * @event app-drawer-transitioned
        */
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-drawer-layout" assetpath="app-drawer-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([fullbleed]) {
-      @apply(--layout-fit);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      transition: var(--app-drawer-layout-content-transition, none);
-    }
-
-    #contentContainer:not(.narrow) > ::content [drawer-toggle] {
-      display: none;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host([fullbleed]) {
+        @apply(--layout-fit);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        height: 100%;
+
+        transition: var(--app-drawer-layout-content-transition, none);
+      }
+
+      #contentContainer:not(.narrow) > ::content [drawer-toggle] {
+        display: none;
+      }
+    </style>
 
     <div id="contentContainer" class$="[[_computeClass(narrow)]]">
       <content select=":not(app-drawer)"></content>
@@ -17471,17 +17526,17 @@ Displays a page on different device layouts.
     <content id="drawerContent" select="app-drawer"></content>
 
     <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]" on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-drawer-layout',
 
-      properties: {
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
 
+      properties: {
         /**
          * Returns true if the panel is in narrow layout. This is useful if you
          * need to show/hide elements based on the layout.
@@ -17511,7 +17566,6 @@ Displays a page on different device layouts.
           type: String,
           value: '640px'
         }
-
       },
 
       listeners: {
@@ -17561,6 +17615,7 @@ Displays a page on different device layouts.
             this.$.contentContainer.style.marginLeft = this.drawer.getWidth() + 'px';
             this.$.contentContainer.style.marginRight = '';
           }
+          this.notifyResize();
         });
       },
 
@@ -17581,103 +17636,112 @@ Displays a page on different device layouts.
       _computeClass: function(narrow) {
         return narrow ? 'narrow' : '';
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header" assetpath="app-header/">
-  <style>
-
-    :host {
-      position: relative;
-      display: block;
-      transition-property: -webkit-transform;
-      transition-property: transform;
-      transition-timing-function: linear;
-    }
-
-    :host::after {
-      content: "";
-      position: absolute;
-      left: 0px;
-      right: 0px;
-      bottom: -5px;
-      width: 100%;
-      height: 5px;
-      pointer-events: none;
-      opacity: 0;
-      box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
-      will-change: opacity;
-      transition: opacity 0.4s;
-      @apply(--app-header-shadow);
-    }
-
-    :host([shadow])::after {
-      opacity: 1;
-    }
-
-    #contentContainer > ::content [condensed-title] {
-      opacity: 0;
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #contentContainer > ::content [title] {
-      white-space: nowrap;
-      -webkit-transform-origin: left top;
-      transform-origin: left top;
-    }
-
-    #background {
-      @apply(--layout-fit);
-      overflow: hidden;
-    }
-
-    #backgroundFrontLayer,
-    #backgroundRearLayer {
-      @apply(--layout-fit);
-      pointer-events: none;
-      background-size: cover;
-      height: 100%;
-    }
-
-    #backgroundFrontLayer {
-      @apply(--app-header-background-front-layer);
-    }
-
-    #backgroundRearLayer {
-      @apply(--app-header-background-rear-layer);
-      opacity: 0;
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      width: 100%;
-    }
-
-    :host([disabled]),
-    :host([disabled])::after,
-    :host([disabled]) #backgroundFrontLayer,
-    :host([disabled]) #backgroundRearLayer,
-    :host([disabled]) ::content > app-toolbar:first-of-type,
-    :host([disabled]) ::content > [primary],
-    /* Silent scrolling should not run CSS transitions */
-    :host-context(.app-layout-silent-scroll),
-    :host-context(.app-layout-silent-scroll)::after,
-    :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
-    :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
-    :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
-    :host-context(.app-layout-silent-scroll) ::content > [primary] {
-      transition: none !important;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+
+        transition-timing-function: linear;
+        transition-property: -webkit-transform;
+        transition-property: transform;
+      }
+
+      :host::after {
+        position: absolute;
+        right: 0px;
+        bottom: -5px;
+        left: 0px;
+
+        width: 100%;
+        height: 5px;
+
+        content: "";
+        transition: opacity 0.4s;
+        pointer-events: none;
+
+        opacity: 0;
+        box-shadow: inset 0px 5px 6px -3px rgba(0, 0, 0, 0.4);
+
+        will-change: opacity;
+
+        @apply(--app-header-shadow);
+      }
+
+      :host([shadow])::after {
+        opacity: 1;
+      }
+
+      #contentContainer > ::content [condensed-title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+
+        opacity: 0;
+      }
+
+      #contentContainer > ::content [title] {
+        -webkit-transform-origin: left top;
+        transform-origin: left top;
+        white-space: nowrap;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+      }
+
+      #backgroundFrontLayer,
+      #backgroundRearLayer {
+        @apply(--layout-fit);
+
+        height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+      }
+
+      #backgroundFrontLayer {
+        @apply(--app-header-background-front-layer);
+      }
+
+      #backgroundRearLayer {
+        opacity: 0;
+
+        @apply(--app-header-background-rear-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled])::after,
+      :host([disabled]) #backgroundFrontLayer,
+      :host([disabled]) #backgroundRearLayer,
+      :host([disabled]) ::content > app-toolbar:first-of-type,
+      :host([disabled]) ::content > [primary],
+      /* Silent scrolling should not run CSS transitions */
+      :host-context(.app-layout-silent-scroll),
+      :host-context(.app-layout-silent-scroll)::after,
+      :host-context(.app-layout-silent-scroll) #backgroundFrontLayer,
+      :host-context(.app-layout-silent-scroll) #backgroundRearLayer,
+      :host-context(.app-layout-silent-scroll) ::content > app-toolbar:first-of-type,
+      :host-context(.app-layout-silent-scroll) ::content > [primary] {
+        transition: none !important;
+      }
+    </style>
+
     <div id="background">
       <div id="backgroundRearLayer"></div>
       <div id="backgroundFrontLayer"></div>
@@ -17688,9 +17752,7 @@ Displays a page on different device layouts.
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header',
 
       behaviors: [
@@ -17699,7 +17761,6 @@ Displays a page on different device layouts.
       ],
 
       properties: {
-
         /**
          * If true, the header will automatically collapse when scrolling down.
          * That is, the `primary` element remains visible when the header is fully condensed
@@ -17758,7 +17819,6 @@ Displays a page on different device layouts.
           reflectToAttribute: true,
           value: false
         }
-
       },
 
       observers: [
@@ -17793,7 +17853,7 @@ Displays a page on different device layouts.
       /**
        * The element that remains visible when the header condenses.
        *
-       * @type {Element}
+       * @type {HTMLElement}
        */
       _primaryEl: null,
 
@@ -17832,15 +17892,18 @@ Displays a page on different device layouts.
        * @return {HTMLElement}?
        */
       _getPrimaryEl: function() {
+        /** @type {HTMLElement} */
         var primaryEl;
         var nodes = Polymer.dom(this.$.content).getDistributedNodes();
 
         for (var i = 0; i < nodes.length; i++) {
           if (nodes[i].nodeType === Node.ELEMENT_NODE) {
-            if (nodes[i].hasAttribute('primary')) {
-              return nodes[i];
+            var node = /** @type {HTMLElement} */ (nodes[i]);
+            if (node.hasAttribute('primary')) {
+              primaryEl = node;
+              break;
             } else if (!primaryEl) {
-              primaryEl = nodes[i];
+              primaryEl = node;
             }
           }
         }
@@ -17853,7 +17916,6 @@ Displays a page on different device layouts.
        * @method resetLayout
        */
       resetLayout: function() {
-
         this.fire('app-header-reset-layout');
 
         this.debounce('_resetLayout', function() {
@@ -17898,8 +17960,8 @@ Displays a page on different device layouts.
       /**
        * Updates the scroll state.
        *
-       * @param {number}
-       * @param {boolean}
+       * @param {number} scrollTop
+       * @param {boolean=} forceUpdate (default: false)
        */
       _updateScrollState: function(scrollTop, forceUpdate) {
         if (this._height === 0) {
@@ -18016,7 +18078,7 @@ Displays a page on different device layouts.
       /**
        * Transforms the header.
        *
-       * @param {number}
+       * @param {number} y
        */
       _transformHeader: function(y) {
         this.translate3d(0, (-y) + 'px', 0);
@@ -18052,68 +18114,62 @@ Displays a page on different device layouts.
        * @event app-header-reset-layout
        */
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-header-layout" assetpath="app-header-layout/">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([has-scrolling-region]) {
-      position: relative;
-      height: 100%;
-    }
-
-    :host > ::content > app-header,
-    :host > ::content > [underlay-content] {
-      position: fixed;
-      top: 0;
-      right: 0;
-      left: 0;
-    }
-
-    :host([has-scrolling-region]) > ::content > app-header,
-    :host([has-scrolling-region]) > ::content > [underlay-content] {
-      position: absolute;
-    }
-
-    :host([has-scrolling-region]) > #contentContainer {
-      @apply(--layout-fit);
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    #contentContainer {
-      position: relative;
-      overflow-y: hidden;
-      @apply(--app-header-layout-content);
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
 
-    <content id="underlayContent" select="[underlay-content]"></content>
+        /**
+         * Force app-header-layout to have its own stacking context so that its parent can
+         * control the stacking of it relative to other elements (e.g. app-drawer-layout).
+         * This could be done using `isolation: isolate`, but that's not well supported
+         * across browsers.
+         */
+        position: relative;
+        z-index: 0;
+      }
 
-    <div id="contentContainer">
-      <content select=":not(app-header):not([app-header-overlay])"></content>
-    </div>
+      :host([has-scrolling-region]) {
+        height: 100%;
+      }
+
+      :host > ::content > app-header {
+        @apply(--layout-fixed-top);
+
+        z-index: 1;
+      }
+
+      :host([has-scrolling-region]) > ::content > app-header {
+        position: absolute;
+      }
+
+      #contentContainer {
+        /* Create a stacking context here so that all children appear below the header. */
+        position: relative;
+        z-index: 0;
+      }
+
+      :host([has-scrolling-region]) > #contentContainer {
+        @apply(--layout-fit);
+
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    </style>
 
     <content id="header" select="app-header"></content>
 
-    <content select="[app-header-overlay]"></content>
+    <div id="contentContainer">
+      <content></content>
+    </div>
 
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-header-layout',
 
       behaviors: [
@@ -18121,7 +18177,6 @@ Displays a page on different device layouts.
       ],
 
       properties: {
-
         /**
          * If true, the current element will have its own scrolling region.
          * Otherwise, it will use the document scroll to control the header.
@@ -18131,7 +18186,6 @@ Displays a page on different device layouts.
           value: false,
           reflectToAttribute: true
         }
-
       },
 
       listeners: {
@@ -18148,7 +18202,8 @@ Displays a page on different device layouts.
       },
 
       /**
-       * Resets the layout. This method is automatically called when the element is attached to the DOM.
+       * Resets the layout. This method is automatically called when the element is attached
+       * to the DOM.
        *
        * @method resetLayout
        */
@@ -18157,36 +18212,39 @@ Displays a page on different device layouts.
         this.debounce('_resetLayout', this._updateContentPosition);
       },
 
-      _getFixedNodes: function() {
-        return Polymer.dom(this.$.header).getDistributedNodes().
-            concat(Polymer.dom(this.$.underlayContent).getDistributedNodes());
-      },
-
       _updateContentPosition: function() {
         var header = this.header;
-        var containerStyle = this.$.contentContainer.style;
-
         if (!this.isAttached || !header) {
           return;
         }
 
-        var rect = this.getBoundingClientRect();
-        var rightOffset = document.documentElement.clientWidth - rect.right;
-        this._headerHeight = header.offsetHeight;
+        // Get header height here so that style reads are batched together before style writes
+        // (i.e. getBoundingClientRect() below).
+        var headerHeight = header.offsetHeight;
 
-        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
-          containerStyle.marginTop = this._headerHeight + 'px';
-          containerStyle.paddingTop = '';
+        // Update the header position.
+        if (!this.hasScrollingRegion) {
+          var rect = this.getBoundingClientRect();
+          var rightOffset = document.documentElement.clientWidth - rect.right;
+          header.style.left = rect.left + 'px';
+          header.style.right = rightOffset + 'px';
         } else {
-          containerStyle.paddingTop = this._headerHeight + 'px';
-          containerStyle.marginTop = '';
+          header.style.left = '';
+          header.style.right = '';
         }
 
-        // update fixed nodes
-        this._getFixedNodes().forEach(function(node) {
-          node.style.left = this.hasScrollingRegion ? '' : rect.left + 'px';
-          node.style.right = this.hasScrollingRegion ? '' : rightOffset + 'px';
-        }.bind(this));
+        // Update the content container position.
+        var containerStyle = this.$.contentContainer.style;
+        if (header.fixed && !header.willCondense() && this.hasScrollingRegion) {
+          // If the header size does not change and we're using a scrolling region, exclude
+          // the header area from the scrolling region so that the header doesn't overlap
+          // the scrollbar.
+          containerStyle.marginTop = headerHeight + 'px';
+          containerStyle.paddingTop = '';
+        } else {
+          containerStyle.paddingTop = headerHeight + 'px';
+          containerStyle.marginTop = '';
+        }
       },
 
       _updateScroller: function() {
@@ -18203,22 +18261,15 @@ Displays a page on different device layouts.
       _resizeHandler: function() {
         this.resetLayout();
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-scrollpos-control" assetpath="app-scrollpos-control/">
-
   <script>
-
     Polymer({
-
       is: 'app-scrollpos-control',
 
       properties: {
-
         /**
          * The selected page.
          */
@@ -18234,7 +18285,6 @@ Displays a page on different device layouts.
           type: Boolean,
           value: false
         }
-
       },
 
       observers: [
@@ -18269,25 +18319,23 @@ Displays a page on different device layouts.
           behavior: 'silent'
         });
       }
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-toolbar" assetpath="app-toolbar/">
-
   <template>
-
     <style>
-
       :host {
+        position: relative;
+
         @apply(--layout-horizontal);
         @apply(--layout-center);
+
         height: 64px;
         padding: 0 16px;
-        position: relative;
+
         pointer-events: none;
+
         font-size: var(--app-toolbar-font-size, 20px);
       }
 
@@ -18302,80 +18350,78 @@ Displays a page on different device layouts.
 
       :host > ::content > [title],
       :host > ::content > [condensed-title] {
-        @apply(--layout-flex);
         pointer-events: none;
+        @apply(--layout-flex);
       }
 
       :host > ::content > [bottom-item] {
         position: absolute;
+        right: 0;
         bottom: 0;
         left: 0;
-        right: 0;
       }
 
       :host > ::content > [top-item] {
         position: absolute;
         top: 0;
-        left: 0;
         right: 0;
+        left: 0;
       }
 
       :host > ::content > [spacer] {
         margin-left: 64px;
       }
-
     </style>
 
     <content></content>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-toolbar'
-
     });
-
   </script>
-
 </dom-module>
 <dom-module id="app-box" assetpath="app-box/">
-  <style>
-
-    :host {
-      display: block;
-      position: relative;
-    }
-
-    #background {
-      @apply(--layout-fit);
-      overflow: hidden;
-      height: 100%;
-    }
-
-    #backgroundFrontLayer {
-      pointer-events: none;
-      background-size: cover;
-      min-height: 100%;
-      @apply(--app-box-background-front-layer);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      width: 100%;
-    }
-
-    :host([disabled]),
-    :host([disabled]) #backgroundFrontLayer {
-      transition: none !important;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        position: relative;
+
+        display: block;
+      }
+
+      #background {
+        @apply(--layout-fit);
+
+        overflow: hidden;
+
+        height: 100%;
+      }
+
+      #backgroundFrontLayer {
+        min-height: 100%;
+
+        pointer-events: none;
+
+        background-size: cover;
+
+        @apply(--app-box-background-front-layer);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        width: 100%;
+        height: 100%;
+      }
+
+      :host([disabled]),
+      :host([disabled]) #backgroundFrontLayer {
+        transition: none !important;
+      }
+    </style>
+
     <div id="background">
       <div id="backgroundFrontLayer">
         <content select="[background]"></content>
@@ -18388,7 +18434,6 @@ Displays a page on different device layouts.
 
   <script>
     Polymer({
-
       is: 'app-box',
 
       behaviors: [
@@ -18459,10 +18504,9 @@ Displays a page on different device layouts.
        * Returns true if this app-box is on the screen.
        * That is, visible in the current viewport.
        *
-       * @method setup
+       * @method isOnScreen
        * @return {boolean}
        */
-
       isOnScreen: function() {
         return this._elementTop < this._scrollTop + this._cachedScrollTargetHeight
             && this._elementTop + this._elementHeight > this._scrollTop;
@@ -18481,10 +18525,8 @@ Displays a page on different device layouts.
       getScrollState: function() {
         return { progress: this._progress };
       }
-
     });
   </script>
-
 </dom-module>
 <dom-module id="device-view" assetpath="site/device-viewer/">
 
@@ -18874,7 +18916,7 @@ Displays a page on different device layouts.
 
       <h1>Templates</h1>
 
-      <p>The templates are a means to define, illustrate and share best practices in app's layout. Select a template and customize to suit your needs.</p>
+      <p>The templates are a means to define, illustrate and share best practices in App Layout. Select a template and customize to suit your needs.</p>
 
       <div class="grid">
 
@@ -18884,6 +18926,37 @@ Displays a page on different device layouts.
             <div class="image" style$="background-image: url({{item.thumbnail}});"></div>
             <div class="caption">
               <h3>{{item.name}}</h3>
+              <div>
+                <a href="{{item.demoUrl}}" target="_blank" tabindex="-1">
+                  <paper-button raised="">View</paper-button>
+                </a>
+                <a href="{{item.sourceUrl}}" target="_blank" tabindex="-1">
+                  <paper-button raised="">Source</paper-button>
+                </a>
+              </div>
+            </div>
+          </div>
+
+        </template>
+
+      </div>
+
+    </section>
+
+    <section>
+
+      <h1>Demos</h1>
+
+      <p>The demos show how to combine App Layout elements to quickly create an app scaffold. This is a great place to learn how to use elements and start building your app.</p>
+
+      <div class="grid">
+
+        <template is="dom-repeat" items="{{resources.demos}}">
+
+          <div class="grid-item">
+            <div class="caption">
+              <h3>{{item.name}}</h3>
+              <p>{{item.desc}}</p>
               <div>
                 <a href="{{item.demoUrl}}" target="_blank" tabindex="-1">
                   <paper-button raised="">View</paper-button>
@@ -18934,7 +19007,7 @@ Displays a page on different device layouts.
 
     <section>
 
-      <h1>Apps</h1>
+      <h1>Users</h1>
 
       <p>Here are some applications built with App Layout. Get started on your own and we might put it here to showcase and share your work.</p>
 
@@ -18949,9 +19022,6 @@ Displays a page on different device layouts.
               <div>
                 <a href="{{item.demoUrl}}" target="_blank" tabindex="-1">
                   <paper-button raised="">View</paper-button>
-                </a>
-                <a href="{{item.sourceUrl}}" target="_blank" tabindex="-1">
-                  <paper-button raised="">Source</paper-button>
                 </a>
               </div>
             </div>
@@ -18978,7 +19048,7 @@ Displays a page on different device layouts.
           <div class="logo"></div><div class="title">Polymer</div>
         </a>
         <div class="flex"></div>
-        <a target="_blank" href="http://polymer.github.io/LICENSE.txt" data-outbound="license-txt">© 2015 Polymer Authors</a>
+        <a target="_blank" href="https://polymer.github.io/LICENSE.txt" data-outbound="license-txt">© 2015 Polymer Authors</a>
         <div class="dot-separator wide-only"></div>
         <a target="_blank" href="https://www.polymer-project.org" data-outbound="about-polymer">About Polymer</a>
       </div>
