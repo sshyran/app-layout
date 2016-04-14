@@ -10,6 +10,7 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
 <link rel="import" href="../../polymer/polymer.html">
 <link rel="import" href="../../iron-media-query/iron-media-query.html">
+<link rel="import" href="../../iron-resizable-behavior/iron-resizable-behavior.html">
 <link rel="import" href="../app-drawer/app-drawer.html">
 
 <!--
@@ -74,30 +75,28 @@ Custom property                          | Description                          
 -->
 
 <dom-module id="app-drawer-layout">
-
-  <style>
-
-    :host {
-      display: block;
-    }
-
-    :host([fullbleed]) {
-      @apply(--layout-fit);
-    }
-
-    #contentContainer {
-      position: relative;
-      height: 100%;
-      transition: var(--app-drawer-layout-content-transition, none);
-    }
-
-    #contentContainer:not(.narrow) > ::content [drawer-toggle] {
-      display: none;
-    }
-
-  </style>
-
   <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+      :host([fullbleed]) {
+        @apply(--layout-fit);
+      }
+
+      #contentContainer {
+        position: relative;
+
+        height: 100%;
+
+        transition: var(--app-drawer-layout-content-transition, none);
+      }
+
+      #contentContainer:not(.narrow) > ::content [drawer-toggle] {
+        display: none;
+      }
+    </style>
 
     <div id="contentContainer" class$="[[_computeClass(narrow)]]">
       <content select=":not(app-drawer)"></content>
@@ -107,17 +106,17 @@ Custom property                          | Description                          
 
     <iron-media-query query="[[_computeMediaQuery(forceNarrow, responsiveWidth)]]"
         on-query-matches-changed="_onQueryMatchesChanged"></iron-media-query>
-
   </template>
 
   <script>
-
     Polymer({
-
       is: 'app-drawer-layout',
 
-      properties: {
+      behaviors: [
+        Polymer.IronResizableBehavior
+      ],
 
+      properties: {
         /**
          * Returns true if the panel is in narrow layout. This is useful if you
          * need to show/hide elements based on the layout.
@@ -147,7 +146,6 @@ Custom property                          | Description                          
           type: String,
           value: '640px'
         }
-
       },
 
       listeners: {
@@ -197,6 +195,7 @@ Custom property                          | Description                          
             this.$.contentContainer.style.marginLeft = this.drawer.getWidth() + 'px';
             this.$.contentContainer.style.marginRight = '';
           }
+          this.notifyResize();
         });
       },
 
@@ -217,9 +216,6 @@ Custom property                          | Description                          
       _computeClass: function(narrow) {
         return narrow ? 'narrow' : '';
       }
-
     });
-
   </script>
-
 </dom-module>
