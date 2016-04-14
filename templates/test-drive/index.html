@@ -19,6 +19,8 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 
   <script src="../../../webcomponentsjs/webcomponents-lite.js"></script>
 
+  <link rel="import" href="../../../platinum-sw/platinum-sw-cache.html">
+  <link rel="import" href="../../../platinum-sw/platinum-sw-register.html">
   <link rel="import" href="test-app.html">
 
   <style>
@@ -35,6 +37,12 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 <body unresolved>
 
   <test-app></test-app>
+
+  <platinum-sw-register
+    auto-register
+    base-uri="https://polygit2.appspot.com/sw-toolbox+googlechrome+*/components/platinum-sw/">
+    <platinum-sw-cache default-cache-strategy="fastest"></platinum-sw-cache>
+  </platinum-sw-register>
 
 </body>
 </html>
